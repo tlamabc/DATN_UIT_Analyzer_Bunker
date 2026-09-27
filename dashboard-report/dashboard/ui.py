@@ -1,24 +1,27 @@
 """SOC dashboard navigation, filters, monitoring views, and reports."""
-from datetime import datetime, time
+from datetime import datetime, timedelta
 import html
-import os
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from .config import APP_TZ, safe_int_env
+from .config import APP_TZ
 from .database import (
-    analyzer_status, database_status, fetch_blocking_ips, fetch_console_logs,
-    fetch_events, fetch_waf_metrics, set_analyzer, set_language,
+    analyzer_status, database_status, fetch_console_logs, fetch_events,
+    set_analyzer, set_language,
 )
 from .monitoring import render_process_controls
 from .pdf_report import make_pdf_report
+from .security_insights import suspicious_ip_candidates
 from .theme import render_theme
 
-PAGES = ["Overview", "Monitoring", "Events", "Configuration", "Reports"]
+PAGES = ["Overview", "Monitoring", "Events", "Reports"]
+PAGE_LABELS = {"Overview": "Tổng quan", "Monitoring": "Giám sát", "Events": "Sự kiện AI", "Reports": "Báo cáo"}
 RISK_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
 CHART_COLORS = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#38bdf8", "#a78bfa"]
+LIVE_WINDOWS = {"15 phút": timedelta(minutes=15), "1 giờ": timedelta(hours=1),
+                "24 giờ": timedelta(hours=24), "7 ngày": timedelta(days=7)}
 
 
 def _render_brand() -> None:
@@ -36,84 +39,66 @@ def _sidebar_inputs(db_ok: bool, db_message: str):
         <div class="side-brand-title">BUNKERWEB</div><div class="side-brand-caption">SOC SECURITY MONITOR</div>
         </div></div>
         """, unsafe_allow_html=True)
-        st.markdown("<div class='side-label'>SYSTEM STATUS</div>", unsafe_allow_html=True)
+        st.markdown("<div class='side-label'>TRẠNG THÁI HỆ THỐNG</div>", unsafe_allow_html=True)
         badge = "db-live" if db_ok else "db-down"
-        symbol = "●" if db_ok else "●"
-        st.markdown(f"<div class='{badge}'>{symbol} DATABASE {html.escape(db_message.upper())}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='side-label'>NAVIGATION</div>", unsafe_allow_html=True)
-        page = st.radio("Sections", PAGES, label_visibility="collapsed", key="soc-navigation")
+        status = "● CƠ SỞ DỮ LIỆU · ĐANG KẾT NỐI" if db_ok else "● CƠ SỞ DỮ LIỆU · MẤT KẾT NỐI"
+        st.markdown(f"<div class='{badge}'>{status}</div>", unsafe_allow_html=True)
+        st.markdown("<div class='side-label'>KHÔNG GIAN SOC</div>", unsafe_allow_html=True)
+        page = st.radio("Phân hệ", PAGES, format_func=lambda value: PAGE_LABELS[value],
+                        label_visibility="collapsed", key="soc-navigation")
     return page
 
 
-def _page_time_range(page: str):
-    now = datetime.now(APP_TZ)
-    key = page.lower()
-    with st.container(border=True):
-        st.markdown("<div class='section-eyebrow'>REPORT WINDOW · ASIA/HO_CHI_MINH (UTC+07)</div>", unsafe_allow_html=True)
-        fields = st.columns([1.1, 1, 1.1, 1, .75])
-        from_date = fields[0].date_input("From date", value=now.date(), key=f"{key}-from-date")
-        from_time = fields[1].time_input("From time", value=time.min, key=f"{key}-from-time")
-        to_date = fields[2].date_input("To date", value=now.date(), key=f"{key}-to-date")
-        to_time = fields[3].time_input("To time", value=now.time().replace(microsecond=0), key=f"{key}-to-time")
-        if fields[4].button("↻ Refresh", use_container_width=True, key=f"{key}-refresh"):
-            st.cache_data.clear()
-            st.rerun()
-    start = datetime.combine(from_date, from_time, tzinfo=APP_TZ)
-    end = datetime.combine(to_date, to_time, tzinfo=APP_TZ)
-    if end < start:
-        st.error("The end of the selected time range must be after its start.")
-        st.stop()
-    return start, end, from_date, to_date
+def _rolling_window(page: str) -> tuple[datetime, datetime, str]:
+    selected = st.selectbox("Cửa sổ dữ liệu", list(LIVE_WINDOWS), index=2, key=f"{page}-live-window")
+    end = datetime.now(APP_TZ)
+    return end - LIVE_WINDOWS[selected], end, selected
 
 
 def _render_page_heading(page: str) -> None:
     descriptions = {
-        "Overview": "Attack activity, blocked requests and source IPs that need analyst review.",
-        "Monitoring": "Analyzer process health, scan progress and live collector output.",
-        "Events": "Search and investigate AI-enriched security incidents from BunkerWeb logs.",
-        "Configuration": "Review collector runtime settings and recommendation language.",
-        "Reports": "Export the selected security incident set for audit and review.",
+        "Overview": "Ưu tiên sự kiện AI, dấu hiệu tấn công lặp lại và hành động cần analyst xác minh.",
+        "Monitoring": "Tình trạng bộ phân tích AI, tiến độ đọc log và hoạt động thu thập trực tiếp.",
+        "Events": "Điều tra sự kiện BunkerWeb đã được AI phân loại, giải thích và đề xuất xử lý.",
+        "Reports": "Báo cáo sự cố cập nhật liên tục, phục vụ bàn giao và kiểm toán SOC.",
     }
     st.markdown(
-        f"<div class='page-heading'><div class='page-eyebrow'>SECURITY OPERATIONS CENTER</div>"
-        f"<h1>{page}</h1><p>{descriptions[page]}</p></div>", unsafe_allow_html=True,
+        f"<div class='page-heading'><div class='page-eyebrow'>TRUNG TÂM ĐIỀU HÀNH AN NINH</div>"
+        f"<h1>{PAGE_LABELS[page]}</h1><p>{descriptions[page]}</p></div>", unsafe_allow_html=True,
     )
 
 
 def _filtered_events(events: pd.DataFrame, page: str) -> pd.DataFrame:
     with st.container(border=True):
-        st.markdown("<div class='section-eyebrow'>INCIDENT FILTERS</div>", unsafe_allow_html=True)
-        filter_cols = st.columns([1, 1.3, 1.1])
+        st.markdown("<div class='section-eyebrow'>BỘ LỌC SỰ KIỆN</div>", unsafe_allow_html=True)
+        filter_cols = st.columns(3)
         present_risk_scores = [value for value in RISK_ORDER if value in set(events["risk_score"].dropna())]
-        selected_risk_scores = filter_cols[0].multiselect("Risk score", present_risk_scores, default=present_risk_scores, key=f"{page}-risk-filter")
+        selected_risk_scores = filter_cols[0].multiselect("Mức độ rủi ro", present_risk_scores, default=present_risk_scores, key=f"{page}-risk-filter")
         classifications = sorted(str(value) for value in events["classification"].dropna().unique())
-        selected_classifications = filter_cols[1].multiselect("Classification", classifications, default=classifications, key=f"{page}-classification-filter")
-        ip_search = filter_cols[2].text_input("Source IP", placeholder="Search IP address…", key=f"{page}-source-ip-filter").strip().lower()
+        selected_classifications = filter_cols[1].multiselect("Phân loại", classifications, default=classifications, key=f"{page}-classification-filter")
+        ip_search = filter_cols[2].text_input("Địa chỉ IP nguồn", placeholder="Tìm IP…", key=f"{page}-source-ip-filter").strip().lower()
     filtered = events[events["risk_score"].isin(selected_risk_scores) & events["classification"].astype(str).isin(selected_classifications)].copy()
     if ip_search:
         filtered = filtered[filtered["client_ip"].fillna("").astype(str).str.lower().str.contains(ip_search, regex=False)]
     return filtered
 
 
-def _metric_row(events: pd.DataFrame, waf: dict) -> tuple[int, int]:
+def _metric_row(events: pd.DataFrame, candidates: pd.DataFrame) -> None:
     risk_score = events["risk_score"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
     critical_high = int(risk_score.isin(["critical", "high"]).sum())
     cards = st.columns(4)
-    cards[0].metric("Security events", f"{len(events):,}")
-    cards[1].metric("Critical / High", f"{critical_high:,}")
-    cards[2].metric("Unique attackers", f"{waf['unique_attackers']:,}")
-    rate_label = f"{waf['block_rate']:.1f}%" if waf["total_requests"] else "No data"
-    cards[3].metric("WAF block rate", rate_label, help="Blocked access.log requests divided by observed access.log requests in this time range.")
-    st.caption(f"WAF observation: {waf['blocked_requests']:,} blocked of {waf['total_requests']:,} access requests · metrics use the selected time window.")
-    return critical_high, len(events)
+    cards[0].metric("Sự kiện AI phân tích", f"{len(events):,}")
+    cards[1].metric("Mức cao / nghiêm trọng", f"{critical_high:,}")
+    cards[2].metric("IP nguồn duy nhất", f"{events['client_ip'].nunique():,}" if not events.empty else "0")
+    cards[3].metric("IP cần analyst rà soát", f"{len(candidates):,}")
 
 
 def _render_classification_donut(events: pd.DataFrame) -> None:
     if events.empty:
-        st.info("No analyzed security incidents in this time range.")
+        st.info("Không có sự kiện bảo mật AI trong cửa sổ đang chọn.")
         return
-    counts = events["classification"].fillna("Unknown").value_counts().rename_axis("Classification").reset_index(name="Incidents")
-    figure = px.pie(counts, names="Classification", values="Incidents", hole=.62,
+    counts = events["classification"].fillna("Chưa phân loại").value_counts().rename_axis("Phân loại").reset_index(name="Sự kiện")
+    figure = px.pie(counts, names="Phân loại", values="Sự kiện", hole=.62,
                     color_discrete_sequence=CHART_COLORS)
     figure.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                          margin=dict(l=8, r=8, t=8, b=8), legend=dict(orientation="h", y=-.08),
@@ -128,46 +113,74 @@ def _render_attack_timeline(events: pd.DataFrame) -> None:
         return
     timeline = events.assign(timestamp=pd.to_datetime(events["timestamp"], utc=True, errors="coerce"))
     timeline = timeline.dropna(subset=["timestamp"]).set_index("timestamp").resample("1h").size()
-    frame = timeline.rename("Incidents").reset_index()
-    figure = px.area(frame, x="timestamp", y="Incidents", color_discrete_sequence=["#38bdf8"])
+    frame = timeline.rename("Sự kiện").reset_index()
+    figure = px.area(frame, x="timestamp", y="Sự kiện", color_discrete_sequence=["#38bdf8"])
     figure.update_traces(line=dict(width=2), fillcolor="rgba(56,189,248,.18)")
     figure.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                          margin=dict(l=8, r=8, t=8, b=8), height=310, font_color="#dce5ef",
-                         xaxis_title=None, yaxis_title="Incidents", showlegend=False)
+                         xaxis_title=None, yaxis_title="Sự kiện", showlegend=False)
     st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False})
 
 
-def _render_ip_matrix(start: datetime, end: datetime, ip_search: str = "") -> None:
+def _render_ip_triage(candidates: pd.DataFrame) -> None:
     with st.container(border=True):
-        st.markdown("### Blocked source IPs")
-        st.caption("Derived from observed access.log requests flagged by WAF/security status or markers.")
-        rows = fetch_blocking_ips(start, end, 100, ip_search)
-        if not rows:
-            st.info("No blocked source IPs were observed in the selected range.")
+        st.markdown("### IP cần ưu tiên rà soát")
+        st.caption("Tương quan trên sự kiện AI: IP có ít nhất 3 sự kiện hoặc có sự kiện mức cao/nghiêm trọng.")
+        if candidates.empty:
+            st.info("Chưa có IP nào vượt ngưỡng ưu tiên trong cửa sổ đang chọn.")
             return
-        frame = pd.DataFrame(rows, columns=["Source IP", "Blocked requests", "Last seen"])
-        frame["Review"] = frame["Blocked requests"].map(lambda count: "Repeated" if count >= 3 else "Review")
-        st.dataframe(frame, use_container_width=True, hide_index=True,
-                     column_config={"Source IP": st.column_config.TextColumn("Source IP"),
-                                    "Blocked requests": st.column_config.NumberColumn("Blocked requests", format="%d"),
-                                    "Last seen": st.column_config.DatetimeColumn("Last seen", format="YYYY-MM-DD HH:mm:ss"),
-                                    "Review": st.column_config.TextColumn("Triage")})
+        display = candidates.rename(columns={
+            "client_ip": "IP nguồn", "event_count": "Số sự kiện", "high_critical": "Cao / nghiêm trọng",
+            "attack_types": "Loại sự kiện", "review_reason": "Lý do ưu tiên", "last_seen": "Ghi nhận gần nhất",
+        }).copy()
+        display["Ghi nhận gần nhất"] = pd.to_datetime(display["Ghi nhận gần nhất"], utc=True, errors="coerce").dt.tz_convert(APP_TZ)
+        st.dataframe(display, use_container_width=True, hide_index=True,
+                     column_config={"IP nguồn": st.column_config.TextColumn("IP nguồn"),
+                                    "Số sự kiện": st.column_config.NumberColumn("Sự kiện", format="%d"),
+                                    "Cao / nghiêm trọng": st.column_config.NumberColumn("Cao / nghiêm trọng", format="%d"),
+                                    "Loại sự kiện": st.column_config.NumberColumn("Loại", format="%d"),
+                                    "Lý do ưu tiên": st.column_config.TextColumn("Lý do ưu tiên"),
+                                    "Ghi nhận gần nhất": st.column_config.DatetimeColumn("Gần nhất", format="HH:mm:ss · DD/MM/YYYY")})
 
 
-def _render_overview(events: pd.DataFrame, waf: dict, start: datetime, end: datetime) -> None:
-    st.markdown("### Metrics overview")
-    st.caption("Traffic cards use independently observed access.log data. Charts and incident lists reflect the selected risk score, classification and source IP filters.")
-    _metric_row(events, waf)
+def _render_ai_recommendations(events: pd.DataFrame) -> None:
+    with st.container(border=True):
+        st.markdown("### Hàng đợi xử lý do AI đề xuất")
+        if events.empty:
+            st.info("Chưa có sự kiện để tạo hàng đợi xử lý.")
+            return
+        priority = events[events["risk_score"].astype(str).str.lower().isin(["critical", "high"])].head(8).copy()
+        if priority.empty:
+            st.info("Không có sự kiện mức cao hoặc nghiêm trọng trong cửa sổ đang chọn.")
+            return
+        priority["timestamp"] = pd.to_datetime(priority["timestamp"], utc=True, errors="coerce").dt.tz_convert(APP_TZ)
+        priority = priority.rename(columns={"timestamp": "Thời điểm", "client_ip": "IP nguồn",
+                                            "classification": "Phân loại", "risk_score": "Mức độ",
+                                            "recommendation": "Đề xuất xử lý (AI)"})
+        st.dataframe(priority[["Thời điểm", "IP nguồn", "Phân loại", "Mức độ", "Đề xuất xử lý (AI)"]],
+                     use_container_width=True, hide_index=True, height=320,
+                     column_config={"Thời điểm": st.column_config.DatetimeColumn("Thời điểm", format="HH:mm:ss · DD/MM/YYYY"),
+                                    "IP nguồn": st.column_config.TextColumn("IP nguồn"),
+                                    "Phân loại": st.column_config.TextColumn("Phân loại"),
+                                    "Mức độ": st.column_config.TextColumn("Mức độ"),
+                                    "Đề xuất xử lý (AI)": st.column_config.TextColumn("Đề xuất xử lý (AI)", width="large")})
+
+
+def _render_overview(events: pd.DataFrame) -> None:
+    st.markdown("### Tình hình sự cố")
+    candidates = suspicious_ip_candidates(events)
+    _metric_row(events, candidates)
     left, right = st.columns(2)
     with left:
         with st.container(border=True):
-            st.markdown("### Classification distribution")
+            st.markdown("### Phân loại sự kiện")
             _render_classification_donut(events)
     with right:
         with st.container(border=True):
-            st.markdown("### Incident trend")
+            st.markdown("### Xu hướng sự kiện")
             _render_attack_timeline(events)
-    _render_ip_matrix(start, end, st.session_state.get("Overview-source-ip-filter", "").strip())
+    _render_ip_triage(candidates)
+    _render_ai_recommendations(events)
 
 
 def _render_console() -> None:
@@ -175,7 +188,7 @@ def _render_console() -> None:
     def console_fragment() -> None:
         logs = fetch_console_logs(120)
         if not logs:
-            st.info("No analyzer output yet. Start the analyzer to stream collector activity here.")
+            st.info("Chưa có hoạt động thu thập. Hãy khởi động bộ phân tích để xem log trực tiếp.")
             return
         lines = []
         for created_at, level, logger_name, message in logs:
@@ -192,79 +205,81 @@ def _render_console() -> None:
     console_fragment()
 
 
-def _render_monitoring(analyzer: dict) -> None:
-    st.markdown("### Analyzer process")
-    render_process_controls(analyzer)
+def _render_monitoring() -> None:
+    st.markdown("### Tình trạng bộ phân tích")
+
+    @st.fragment(run_every="5s")
+    def process_fragment() -> None:
+        current = analyzer_status()
+        render_process_controls(current)
+        with st.container(border=True):
+            st.markdown("### Điều khiển bộ phân tích")
+            columns = st.columns(3)
+            columns[0].caption("Phân tích và đề xuất luôn sử dụng tiếng Việt.")
+            if columns[1].button("▶ Khởi động", type="primary", use_container_width=True, disabled=current["enabled"]):
+                set_analyzer(True, "Vietnamese")
+                st.rerun()
+            if columns[2].button("■ Dừng", use_container_width=True, disabled=not current["enabled"]):
+                set_analyzer(False, "Vietnamese")
+                st.rerun()
+
+    process_fragment()
     with st.container(border=True):
-        st.markdown("### Process controls")
-        columns = st.columns([2, 1, 1, 2])
-        language = columns[0].selectbox("AI recommendation language", ["Vietnamese", "English"],
-                                        index=0 if analyzer["language"] == "Vietnamese" else 1,
-                                        format_func=lambda value: "Tiếng Việt" if value == "Vietnamese" else value,
-                                        key="monitor-language")
-        if columns[1].button("▶ Start analyzer", type="primary", use_container_width=True, disabled=analyzer["enabled"]):
-            set_analyzer(True, language)
-            st.rerun()
-        if columns[2].button("■ Stop analyzer", use_container_width=True, disabled=not analyzer["enabled"]):
-            set_analyzer(False, language)
-            st.rerun()
-        columns[3].caption("Security events are analyzed on the configured scan schedule.")
-    with st.container(border=True):
-        st.markdown("### Live analyzer console")
-        st.caption("Auto-refreshes every 3 seconds while this page is open.")
+        st.markdown("### Nhật ký collector trực tiếp")
+        st.caption("Tự cập nhật mỗi 3 giây.")
         _render_console()
 
 
 def _render_incident_inspector(event: pd.Series) -> None:
-    st.markdown(f"### AI incident inspector · {event.get('classification', 'Security incident')}")
+    st.markdown(f"### Phân tích sự kiện · {event.get('classification', 'Sự kiện bảo mật')}")
     st.markdown(
-        f"**Risk score:** <span class='severity-{str(event.get('risk_score', 'info')).lower()}'>"
+        f"**Mức độ rủi ro:** <span class='severity-{str(event.get('risk_score', 'info')).lower()}'>"
         f"{html.escape(str(event.get('risk_score') or 'Info'))}</span>　·　"
         f"**Source IP:** `{html.escape(str(event.get('client_ip') or 'Unknown'))}`",
         unsafe_allow_html=True,
     )
-    st.caption("AI hỗ trợ phân tích sự kiện bảo mật, không thay thế vai trò chặn của WAF.")
+    st.caption("AI hỗ trợ điều tra và đề xuất; chính sách chặn vẫn do WAF thực thi.")
 
     pipeline_cols = st.columns([1, 1, 1, 1])
-    pipeline_cols[0].markdown("**Security event**")
-    pipeline_cols[1].markdown("**Collector**")
-    pipeline_cols[2].markdown("**Analyzer**")
-    pipeline_cols[3].markdown("**Ollama/LLM**")
+    pipeline_cols[0].markdown("**Sự kiện**")
+    pipeline_cols[1].markdown("**Thu thập**")
+    pipeline_cols[2].markdown("**Phân tích**")
+    pipeline_cols[3].markdown("**Mô hình AI**")
 
     classification_col, risk_col = st.columns(2)
     with classification_col:
         with st.container(border=True):
-            st.markdown("#### Classification · Phân loại sự kiện bảo mật")
+            st.markdown("#### Phân loại sự kiện")
             st.markdown(html.escape(str(event.get("classification") or "Chưa phân loại.")))
     with risk_col:
         with st.container(border=True):
-            st.markdown("#### Risk scoring · Đánh giá mức độ rủi ro")
+            st.markdown("#### Mức độ rủi ro")
             risk_value = str(event.get("risk_score") or "Info")
             st.markdown(f"<span class='severity-{risk_value.lower()}' style='font-size:1.1rem'>{html.escape(risk_value)}</span>", unsafe_allow_html=True)
 
     explanation_col, correlation_col = st.columns(2)
     with explanation_col:
         with st.container(border=True):
-            st.markdown("#### Explanation · Giải thích nguyên nhân và bối cảnh")
+            st.markdown("#### Giải thích và bối cảnh")
             st.markdown(str(event.get("explanation") or "Chưa có giải thích được lưu."))
     with correlation_col:
         with st.container(border=True):
-            st.markdown("#### Correlation · Tương quan tấn công đơn/đa giai đoạn")
+            st.markdown("#### Tương quan tấn công")
             st.markdown(str(event.get("correlation") or "Chưa có phân tích tương quan."))
 
     with st.container(border=True):
-        st.markdown("#### Recommendation · Đề xuất hành động xử lý")
+        st.markdown("#### Đề xuất hành động xử lý")
         st.markdown(str(event.get("recommendation") or "Chưa có khuyến nghị được lưu."))
 
     with st.container(border=True):
-        st.markdown("#### Raw log payload")
-        st.code(str(event.get("raw_log") or "No raw log payload stored."), language=None)
+        st.markdown("#### Log gốc")
+        st.code(str(event.get("raw_log") or "Không có log gốc được lưu."), language=None)
 
 
 def _render_events(events: pd.DataFrame) -> None:
-    st.markdown("### Security events matrix")
+    st.markdown("### Danh sách sự kiện bảo mật")
     if events.empty:
-        st.info("No analyzed security events match the selected filters.")
+        st.info("Không có sự kiện AI nào khớp với bộ lọc.")
         return
     display = events.copy().reset_index(drop=True)
     display["timestamp"] = pd.to_datetime(display["timestamp"], utc=True, errors="coerce").dt.tz_convert(APP_TZ)
@@ -277,70 +292,58 @@ def _render_events(events: pd.DataFrame) -> None:
     selection = st.dataframe(
         styled_events, use_container_width=True, hide_index=True, height=390,
         on_select="rerun", selection_mode="single-row", key="security-event-matrix",
-        column_config={"timestamp": st.column_config.DatetimeColumn("Timestamp (UTC+07)", format="YYYY-MM-DD HH:mm:ss"),
-                       "client_ip": st.column_config.TextColumn("Source IP"),
-                       "classification": st.column_config.TextColumn("Classification"),
-                       "risk_score": st.column_config.TextColumn("Risk score")},
+        column_config={"timestamp": st.column_config.DatetimeColumn("Thời điểm (UTC+07)", format="DD/MM/YYYY HH:mm:ss"),
+                   "client_ip": st.column_config.TextColumn("IP nguồn"),
+                   "classification": st.column_config.TextColumn("Phân loại"),
+                   "risk_score": st.column_config.TextColumn("Mức độ")},
     )
     selected_rows = selection.selection.rows
     if selected_rows and 0 <= selected_rows[0] < len(display):
         _render_incident_inspector(display.iloc[selected_rows[0]])
     else:
-        st.caption("Select a row to open its raw payload and AI incident analysis.")
+        st.caption("Chọn một dòng để xem log gốc, phân tích và đề xuất của AI.")
 
 
-def _render_configuration(analyzer: dict) -> None:
-    st.markdown("### Analysis configuration")
-    left, right = st.columns([1, 1.2])
-    with left:
-        with st.container(border=True):
-            st.markdown("#### AI recommendation language")
-            current = analyzer["language"]
-            chosen = st.selectbox("Incident recommendation language", ["Vietnamese", "English"],
-                                  index=0 if current == "Vietnamese" else 1,
-                                  format_func=lambda value: "Tiếng Việt" if value == "Vietnamese" else value,
-                                  key="configured-language")
-            if st.button("Save language", key="save-language"):
-                set_language(chosen)
-                st.success("Recommendation language saved.")
-                st.rerun()
-    with right:
-        with st.container(border=True):
-            st.markdown("#### Collector runtime")
-            settings = [
-                ("BunkerWeb log source", os.getenv("BUNKERWEB_LOG_GLOB", "/var/log/bunkerweb/access.log")),
-                ("Scan interval", f"{safe_int_env('ANALYZER_SCAN_INTERVAL_SECONDS', 600)} seconds"),
-                ("Events per scan", str(safe_int_env("ANALYZER_MAX_EVENTS_PER_SCAN", 3))),
-                ("Lines per scan", f"{safe_int_env('ANALYZER_MAX_LINES_PER_SCAN', 2000):,}"),
-                ("Control polling", f"{safe_int_env('ANALYZER_CONTROL_POLL_SECONDS', 5)} seconds"),
-            ]
-            for label, value in settings:
-                name, val = st.columns([1, 1.4])
-                name.caption(label)
-                val.code(value, language=None)
-            st.caption("Change runtime values in .env, then recreate the collector service.")
-
-
-def _render_reports(events: pd.DataFrame, start: datetime, end: datetime, from_date, to_date) -> None:
-    st.markdown("### Audit export")
+def _render_reports(events: pd.DataFrame, start: datetime, end: datetime, window: str) -> None:
+    st.markdown("### Báo cáo sự cố trực tiếp")
+    st.caption(f"Cửa sổ {window} · {start:%d/%m/%Y %H:%M} đến {end:%d/%m/%Y %H:%M} (UTC+07)")
     cards = st.columns(3)
     counts = events["risk_score"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
-    cards[0].metric("Filtered incidents", f"{len(events):,}")
-    cards[1].metric("Critical", f"{int((counts == 'critical').sum()):,}")
-    cards[2].metric("High", f"{int((counts == 'high').sum()):,}")
+    cards[0].metric("Sự kiện trong cửa sổ", f"{len(events):,}")
+    cards[1].metric("Nghiêm trọng", f"{int((counts == 'critical').sum()):,}")
+    cards[2].metric("Mức cao", f"{int((counts == 'high').sum()):,}")
     if events.empty:
-        st.info("No filtered incidents to export.")
+        st.info("Chưa có sự kiện phù hợp để xuất báo cáo.")
         return
     export_columns = ["timestamp", "client_ip", "classification", "risk_score", "explanation", "correlation", "recommendation", "raw_log"]
     csv_data = events[export_columns].to_csv(index=False).encode("utf-8-sig")
     pdf_data = make_pdf_report(events, start, end)
     left, right = st.columns(2)
-    left.download_button("Download filtered CSV", csv_data,
-                         file_name=f"soc-events-{from_date:%Y%m%d}-{to_date:%Y%m%d}.csv", mime="text/csv",
+    left.download_button("Tải dữ liệu sự kiện CSV", csv_data,
+                         file_name=f"soc-events-{start:%Y%m%d-%H%M}-{end:%Y%m%d-%H%M}.csv", mime="text/csv",
                          use_container_width=True)
-    right.download_button("Download PDF report", pdf_data,
-                          file_name=f"soc-report-{from_date:%Y%m%d}-{to_date:%Y%m%d}.pdf",
+    right.download_button("Tải báo cáo PDF", pdf_data,
+                          file_name=f"soc-report-{start:%Y%m%d-%H%M}-{end:%Y%m%d-%H%M}.pdf",
                           mime="application/pdf", use_container_width=True)
+
+
+@st.fragment(run_every="10s")
+def _render_live_data(page: str) -> None:
+    start, end, window = _rolling_window(page)
+    st.markdown(f"<span class='db-live'>● TRỰC TIẾP</span>　Cập nhật lúc {end:%H:%M:%S} · UTC+07",
+                unsafe_allow_html=True)
+    try:
+        events = _filtered_events(fetch_events(start, end), page)
+    except Exception as exc:
+        st.error("Không thể tải sự kiện. Kiểm tra kết nối PostgreSQL.")
+        st.exception(exc)
+        return
+    if page == "Overview":
+        _render_overview(events)
+    elif page == "Events":
+        _render_events(events)
+    else:
+        _render_reports(events, start, end, window)
 
 
 def run_app() -> None:
@@ -348,36 +351,23 @@ def run_app() -> None:
     db_ok, db_message = database_status()
     page = _sidebar_inputs(db_ok, db_message)
     if not db_ok:
-        st.error(f"PostgreSQL is unavailable ({db_message}). Check the database service and DB configuration.")
+        st.error(f"Không kết nối được PostgreSQL ({db_message}). Kiểm tra dịch vụ cơ sở dữ liệu.")
+        st.stop()
+    try:
+        if analyzer_status()["language"] != "Vietnamese":
+            set_language("Vietnamese")
+    except Exception as exc:
+        st.error("Không thể đọc cấu hình bộ phân tích AI từ PostgreSQL.")
+        st.exception(exc)
         st.stop()
 
     _render_page_heading(page)
-    timed_pages = {"Overview", "Events", "Reports"}
-    if page in timed_pages:
-        start, end, from_date, to_date = _page_time_range(page)
-    else:
-        start = end = from_date = to_date = None
-
-    try:
-        analyzer = analyzer_status()
-        if page in timed_pages:
-            all_events = fetch_events(start, end)
-            events = _filtered_events(all_events, page)
-        else:
-            events = pd.DataFrame()
-        waf = fetch_waf_metrics(start, end) if page == "Overview" else None
-    except Exception as exc:
-        st.error("Could not load SOC data. Check PostgreSQL connectivity and schema.")
-        st.exception(exc)
-        st.stop()
     if page == "Overview":
-        _render_overview(events, waf, start, end)
+        _render_live_data(page)
     elif page == "Monitoring":
-        _render_monitoring(analyzer)
+        _render_monitoring()
     elif page == "Events":
-        _render_events(events)
-    elif page == "Configuration":
-        _render_configuration(analyzer)
+        _render_live_data(page)
     elif page == "Reports":
-        _render_reports(events, start, end, from_date, to_date)
-    st.markdown("<div class='report-footer'>SOC Security Monitor · Đặng Thanh Lâm · Trương Tấn Đạt</div>", unsafe_allow_html=True)
+        _render_live_data(page)
+    st.markdown("<div class='report-footer'>SOC · Phân tích sự kiện và hỗ trợ điều tra bảo mật</div>", unsafe_allow_html=True)

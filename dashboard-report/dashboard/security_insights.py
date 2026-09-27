@@ -26,7 +26,7 @@ def suspicious_ip_candidates(events: pd.DataFrame) -> pd.DataFrame:
     )
     summary = summary[(summary["event_count"] >= 3) | (summary["high_critical"] > 0)]
     summary["review_reason"] = summary.apply(
-        lambda row: "Repeated hits + High/Critical" if row["event_count"] >= 3 and row["high_critical"] > 0
-        else ("Repeated hits" if row["event_count"] >= 3 else "High/Critical event"), axis=1,
+        lambda row: "Nhiều lần + mức độ cao/nghiêm trọng" if row["event_count"] >= 3 and row["high_critical"] > 0
+        else ("Lặp lại nhiều lần" if row["event_count"] >= 3 else "Có sự kiện mức độ cao/nghiêm trọng"), axis=1,
     )
     return summary.sort_values(["high_critical", "event_count", "last_seen"], ascending=False).head(20)[columns]

@@ -9,20 +9,20 @@ from .database import fetch_console_logs, set_analyzer, set_language
 
 def render_process_controls(analyzer: dict) -> None:
     with st.container(border=True):
-        st.subheader("Analyzer process")
+        st.subheader("Tiến trình phân tích AI")
         metrics = st.columns(4)
-        metrics[0].metric("Process state", analyzer["state"])
-        metrics[1].metric("Events analyzed", f"{analyzer['analyzed']:,}")
-        metrics[2].metric("Log lines scanned", f"{analyzer['lines']:,}")
-        metrics[3].metric("Current file progress", f"{analyzer['progress']:.1f}%")
-        st.progress(min(100, max(0, int(analyzer["progress"]))), text=f"Current log: {analyzer['file']}")
+        metrics[0].metric("Trạng thái", analyzer["state"])
+        metrics[1].metric("Sự kiện đã phân tích", f"{analyzer['analyzed']:,}")
+        metrics[2].metric("Dòng log đã quét", f"{analyzer['lines']:,}")
+        metrics[3].metric("Tiến độ tệp hiện tại", f"{analyzer['progress']:.1f}%")
+        st.progress(min(100, max(0, int(analyzer["progress"]))), text=f"Log hiện tại: {analyzer['file']}")
         st.caption(
-            f"Last scan: {analyzer['last_scan'] or 'Not yet scanned'} · Scan date: {analyzer['scan_date']} · "
-            f"Interval: {safe_int_env('ANALYZER_SCAN_INTERVAL_SECONDS', 600)}s · "
-            f"Limit: {safe_int_env('ANALYZER_MAX_EVENTS_PER_SCAN', 3)} events / scan"
+            f"Lần quét gần nhất: {analyzer['last_scan'] or 'Chưa quét'} · Ngày quét: {analyzer['scan_date']} · "
+            f"Chu kỳ: {safe_int_env('ANALYZER_SCAN_INTERVAL_SECONDS', 15)} giây · "
+            f"Giới hạn: {safe_int_env('ANALYZER_MAX_EVENTS_PER_SCAN', 3)} sự kiện / lần quét"
         )
         if analyzer["error"]:
-            st.warning(f"Last analyzer issue: {analyzer['error']}")
+            st.warning(f"Lỗi gần nhất của bộ phân tích: {analyzer['error']}")
 
 
 def render_live_console(analyzer: dict) -> None:

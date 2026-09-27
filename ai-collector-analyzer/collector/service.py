@@ -13,7 +13,7 @@ from .scanner import scan_file, scan_waf_observations
 
 def main() -> None:
     log_glob = os.getenv("BUNKERWEB_LOG_GLOB", "/var/log/bunkerweb/access.log")
-    interval = positive_int_env("ANALYZER_SCAN_INTERVAL_SECONDS", 600)
+    interval = positive_int_env("ANALYZER_SCAN_INTERVAL_SECONDS", 15)
     max_events = positive_int_env("ANALYZER_MAX_EVENTS_PER_SCAN", 3)
     max_lines = positive_int_env("ANALYZER_MAX_LINES_PER_SCAN", 2000)
     poll_seconds = positive_int_env("ANALYZER_CONTROL_POLL_SECONDS", 5)

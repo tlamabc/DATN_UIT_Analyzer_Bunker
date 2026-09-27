@@ -2,36 +2,50 @@
 import html
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 import pandas as pd
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from .config import APP_TZ
 
 def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime) -> bytes:
+    font_candidates = [
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("C:/Windows/Fonts/arial.ttf"),
+    ]
+    font_path = next((path for path in font_candidates if path.is_file()), None)
+    font_name = "Helvetica"
+    if font_path:
+        pdfmetrics.registerFont(TTFont("SOCUnicode", str(font_path)))
+        font_name = "SOCUnicode"
     buffer = BytesIO()
     document = SimpleDocTemplate(buffer, pagesize=landscape(A4), leftMargin=12*mm, rightMargin=12*mm,
                                  topMargin=13*mm, bottomMargin=14*mm, title="SOC Security Report")
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], textColor=colors.HexColor("#0a246a"), fontSize=18)
-    cell_style = ParagraphStyle("ReportCell", parent=styles["BodyText"], fontSize=7, leading=9)
+    title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], fontName=font_name,
+                                 textColor=colors.HexColor("#0a246a"), fontSize=18)
+    body_style = ParagraphStyle("ReportBody", parent=styles["BodyText"], fontName=font_name)
+    heading_style = ParagraphStyle("ReportHeading", parent=styles["Heading3"], fontName=font_name)
+    italic_style = ParagraphStyle("ReportItalic", parent=styles["Italic"], fontName=font_name)
+    cell_style = ParagraphStyle("ReportCell", parent=styles["BodyText"], fontName=font_name, fontSize=7, leading=9)
     story = [
-        Paragraph("SOC Security Assessment Report", title_style),
-        Paragraph("TÌM HIỂU VÀ XÂY DỰNG HỆ THỐNG WEB APPLICATION FIREWALL OPEN SOURCE TÍCH HỢP AI PHÂN TÍCH TẤN CÔNG", styles["Heading3"]),
-        Paragraph("AI-Enhanced Open Source WAF Security Assessment Lab", styles["Italic"]),
-        Paragraph("Đặng Thanh Lâm (ID: 25410078) · Trương Tấn Đạt (ID: 25410031)", styles["Normal"]),
+        Paragraph("Báo cáo đánh giá an ninh SOC", title_style),
+        Paragraph("BÁO CÁO SỰ KIỆN BẢO MẬT VÀ ĐỀ XUẤT PHÂN TÍCH AI", heading_style),
         Spacer(1, 5*mm),
-        Paragraph(f"Range: {start.strftime('%Y-%m-%d %H:%M')} – {end.strftime('%Y-%m-%d %H:%M')} (Asia/Ho_Chi_Minh)", styles["Normal"]),
-        Paragraph(f"Generated: {datetime.now(APP_TZ).strftime('%Y-%m-%d %H:%M:%S')} (UTC+07:00)", styles["Normal"]),
+        Paragraph(f"Khoảng thời gian: {start.strftime('%d/%m/%Y %H:%M')} – {end.strftime('%d/%m/%Y %H:%M')} (UTC+07)", body_style),
+        Paragraph(f"Thời điểm tạo: {datetime.now(APP_TZ).strftime('%d/%m/%Y %H:%M:%S')} (UTC+07)", body_style),
         Spacer(1, 3*mm),
     ]
     total = len(events)
     critical = int((events["risk_score"].str.lower() == "critical").sum()) if total else 0
     high = int((events["risk_score"].str.lower() == "high").sum()) if total else 0
-    story.append(Paragraph(f"Events: {total} · Critical: {critical} · High: {high}", styles["Heading3"]))
-    headers = ["Timestamp", "Client IP", "Classification", "Risk", "Explanation", "Correlation", "Recommendation", "Raw log"]
+    story.append(Paragraph(f"Tổng sự kiện: {total} · Nghiêm trọng: {critical} · Mức cao: {high}", heading_style))
+    headers = ["Thời điểm", "IP nguồn", "Phân loại", "Mức độ", "Giải thích", "Tương quan", "Đề xuất xử lý", "Log gốc"]
     rows = [headers]
     for _, item in events.head(300).iterrows():
         timestamp = pd.to_datetime(item["timestamp"], utc=True, errors="coerce")
@@ -44,7 +58,7 @@ def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime) -> byt
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0a246a")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, 0), font_name),
         ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f5f3e9")),
         ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#7f9db9")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -53,13 +67,13 @@ def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime) -> byt
     ]))
     story.append(table)
     if total > 300:
-        story.insert(8, Paragraph("Showing the newest 300 of 10,000 loaded events.", styles["Italic"]))
+        story.insert(8, Paragraph("Hiển thị 300 sự kiện mới nhất trong tối đa 10.000 sự kiện đã tải.", italic_style))
 
     def footer(canvas, doc):
         canvas.saveState()
         canvas.setFillColor(colors.HexColor("#0a246a"))
-        canvas.setFont("Helvetica", 8)
-        canvas.drawString(12*mm, 7*mm, "SOC Security Assessment Report")
+        canvas.setFont(font_name, 8)
+        canvas.drawString(12*mm, 7*mm, "Báo cáo đánh giá an ninh SOC")
         canvas.drawRightString(landscape(A4)[0] - 12*mm, 7*mm, f"Page {doc.page}")
         canvas.restoreState()
 
