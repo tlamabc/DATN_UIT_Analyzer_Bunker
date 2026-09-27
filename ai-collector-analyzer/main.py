@@ -21,6 +21,16 @@ LOGGER = logging.getLogger("ai_collector")
 SEVERITIES = {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low"}
 
 
+def positive_int_env(name: str, default: int, minimum: int = 1) -> int:
+    """Read a positive integer setting without crashing on a malformed value."""
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        return max(minimum, int(raw))
+    except (TypeError, ValueError):
+        LOGGER.warning("Invalid %s=%r; using default %d", name, raw, default)
+        return default
+
+
 def db_connect():
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "postgres_db"), port=int(os.getenv("DB_PORT", "5432")),
@@ -56,7 +66,7 @@ def parse_log(raw: str) -> dict[str, Any]:
 
 
 def analyze_log(raw: str, log_data: dict[str, Any]) -> dict[str, str]:
-    endpoint = os.getenv("VMAAS_CHAT_COMPLETIONS_URL", "https://aiplatform.viettelidc.com.vn/apis/v2/chat/completions")
+    endpoint = os.getenv("VMAAS_CHAT_COMPLETIONS_URL", "https://aiplatform.viettelidc.com.vn/apis/v2/chat/completions").strip()
     token, model = os.getenv("VMAAS_API_KEY", "").strip(), os.getenv("VMAAS_MODEL", "").strip()
     if not token or not model:
         raise RuntimeError("VMAAS_API_KEY and VMAAS_MODEL must be configured")
@@ -68,8 +78,14 @@ def analyze_log(raw: str, log_data: dict[str, Any]) -> dict[str, str]:
     )
     response = requests.post(endpoint, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                              json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1},
-                             timeout=(10, int(os.getenv("VMAAS_TIMEOUT_SECONDS", "90"))))
-    response.raise_for_status()
+                             timeout=(10, positive_int_env("VMAAS_TIMEOUT_SECONDS", 90)))
+    if not response.ok:
+        detail = response.text[:1000].replace("\n", " ")
+        raise requests.HTTPError(
+            f"vMaaS returned HTTP {response.status_code} for {endpoint}. "
+            "Check VMAAS_CHAT_COMPLETIONS_URL against IMAGINE_ENDPOINT_URL/API docs "
+            f"and verify the selected model. Response: {detail}", response=response
+        )
     content = response.json()["choices"][0]["message"]["content"]
     if isinstance(content, list):
         content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
@@ -122,12 +138,15 @@ def process_file(path: Path, offset: int) -> int:
                     break
     except FileNotFoundError:
         return offset
+    except PermissionError:
+        LOGGER.error("Permission denied reading %s; grant the container read access to the mounted log", path)
+        return offset
     return offset
 
 
 def main() -> None:
     log_glob = os.getenv("BUNKERWEB_LOG_GLOB", "/var/log/bunkerweb/*.log")
-    poll_seconds = max(1, int(os.getenv("POLL_INTERVAL_SECONDS", "3")))
+    poll_seconds = positive_int_env("POLL_INTERVAL_SECONDS", 3)
     initialize_database()
     offsets: dict[str, int] = {}
     LOGGER.info("Watching BunkerWeb logs: %s", log_glob)
