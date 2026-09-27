@@ -65,6 +65,23 @@ def parse_log(raw: str) -> dict[str, Any]:
     return {"message": raw, "client_ip": match.group(0) if match else None}
 
 
+def parse_model_json(content: str) -> dict[str, Any]:
+    """Extract the JSON object even when a model emits a think block or prose."""
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.IGNORECASE | re.DOTALL).strip()
+    content = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", content, flags=re.IGNORECASE)
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(content):
+        if char != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(content[index:])
+            if isinstance(value, dict):
+                return value
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("vMaaS response did not contain a JSON object")
+
+
 def analyze_log(raw: str, log_data: dict[str, Any]) -> dict[str, str]:
     endpoint = os.getenv("VMAAS_CHAT_COMPLETIONS_URL", "https://aiplatform.viettelidc.com.vn/apis/v2/chat/completions").strip()
     token, model = os.getenv("VMAAS_API_KEY", "").strip(), os.getenv("VMAAS_MODEL", "").strip()
@@ -86,11 +103,13 @@ def analyze_log(raw: str, log_data: dict[str, Any]) -> dict[str, str]:
             "Check VMAAS_CHAT_COMPLETIONS_URL against IMAGINE_ENDPOINT_URL/API docs "
             f"and verify the selected model. Response: {detail}", response=response
         )
-    content = response.json()["choices"][0]["message"]["content"]
+    try:
+        content = response.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError("vMaaS response is missing choices[0].message.content") from exc
     if isinstance(content, list):
         content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
-    content = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", str(content), flags=re.IGNORECASE)
-    result = json.loads(content)
+    result = parse_model_json(str(content))
     attack = str(result.get("attack_type", "")).strip()[:255]
     severity = SEVERITIES.get(str(result.get("severity", "")).strip().lower())
     recommendation = str(result.get("recommendation", "")).strip()
@@ -145,7 +164,7 @@ def process_file(path: Path, offset: int) -> int:
 
 
 def main() -> None:
-    log_glob = os.getenv("BUNKERWEB_LOG_GLOB", "/var/log/bunkerweb/*.log")
+    log_glob = os.getenv("BUNKERWEB_LOG_GLOB", "/var/log/bunkerweb/access.log")
     poll_seconds = positive_int_env("POLL_INTERVAL_SECONDS", 3)
     initialize_database()
     offsets: dict[str, int] = {}

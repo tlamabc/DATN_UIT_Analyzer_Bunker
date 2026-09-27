@@ -15,11 +15,14 @@ def fetch_events() -> pd.DataFrame:
         host=os.getenv("DB_HOST", "postgres_db"), port=int(os.getenv("DB_PORT", "5432")),
         user=os.getenv("DB_USER", "security"), password=os.getenv("DB_PASSWORD", ""),
         dbname=os.getenv("DB_NAME", "security_events"), connect_timeout=8,
-    ) as conn:
-        return pd.read_sql_query(
+    ) as conn, conn.cursor() as cursor:
+        cursor.execute(
             "SELECT id, timestamp, client_ip, raw_log, attack_type, severity, recommendation "
-            "FROM security_events ORDER BY timestamp DESC LIMIT 5000", conn,
+            "FROM security_events ORDER BY timestamp DESC LIMIT 5000"
         )
+        rows = cursor.fetchall()
+        columns = [description.name for description in cursor.description]
+        return pd.DataFrame.from_records(rows, columns=columns)
 
 
 st.title("🛡️ SOC Security Dashboard")

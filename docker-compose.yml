@@ -25,7 +25,7 @@ services:
     environment:
       DB_HOST: postgres_db
       DB_PORT: 5432
-      BUNKERWEB_LOG_GLOB: ${BUNKERWEB_LOG_GLOB:-/var/log/bunkerweb/*.log}
+      BUNKERWEB_LOG_GLOB: ${BUNKERWEB_LOG_GLOB:-/var/log/bunkerweb/access.log}
     depends_on:
       postgres_db:
         condition: service_healthy
