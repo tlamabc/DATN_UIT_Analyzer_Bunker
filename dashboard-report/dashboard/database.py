@@ -136,7 +136,6 @@ def fetch_token_usage(start: datetime, end: datetime) -> tuple[int, int, int, in
 
 def fetch_console_logs(limit: int = 100):
     with db_connect() as conn, conn.cursor() as cursor:
-        ensure_tables(conn)
         cursor.execute(
             "SELECT created_at, level, logger, message FROM analyzer_console_logs "
             "ORDER BY id DESC LIMIT %s", (max(1, min(limit, 500)),),
