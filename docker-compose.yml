@@ -1,0 +1,56 @@
+services:
+  postgres_db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-security}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:-security_events}
+    ports:
+      - "${DB_BIND_ADDRESS:-127.0.0.1}:${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [waf_ai_net]
+
+  ai_collector_analyzer:
+    build: ./ai-collector-analyzer
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres_db
+      DB_PORT: 5432
+      BUNKERWEB_LOG_GLOB: ${BUNKERWEB_LOG_GLOB:-/var/log/bunkerweb/*.log}
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    volumes:
+      - ${BUNKERWEB_LOG_DIR:-/var/log/bunkerweb}:/var/log/bunkerweb:ro
+    networks: [waf_ai_net]
+
+  dashboard_report:
+    build: ./dashboard-report
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres_db
+      DB_PORT: 5432
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_BIND_ADDRESS:-0.0.0.0}:8501:8501"
+    networks: [waf_ai_net]
+
+volumes:
+  postgres_data:
+
+networks:
+  waf_ai_net:
+    driver: bridge
