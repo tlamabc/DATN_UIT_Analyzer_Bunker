@@ -35,6 +35,21 @@ def _render_navigation() -> str:
     return selected
 
 
+def _render_page_heading(page: str) -> None:
+    descriptions = {
+        "Overview": "Security events, attack activity and source IPs requiring review.",
+        "Monitoring": "Collector process state, scan progress and live analyzer output.",
+        "Events": "Review analyzed BunkerWeb security events in the selected time range.",
+        "Configuration": "Analysis language and collector runtime configuration.",
+        "Reports": "Build and download a PDF for the selected reporting window.",
+    }
+    st.markdown(
+        f"<div class='page-heading'><div><div class='page-eyebrow'>SOC · SECURITY OPERATIONS</div>"
+        f"<h1>{page}</h1><p>{descriptions[page]}</p></div></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _render_time_filter() -> tuple[datetime, datetime, object, object]:
     now = datetime.now(APP_TZ)
     with st.container(border=True):
@@ -179,6 +194,7 @@ def run_app() -> None:
     render_theme()
     _render_brand()
     page = _render_navigation()
+    _render_page_heading(page)
     start, end, start_date, end_date = _render_time_filter()
     try:
         events = fetch_events(start, end)

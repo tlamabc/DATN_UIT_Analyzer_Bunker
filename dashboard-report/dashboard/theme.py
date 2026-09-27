@@ -1,59 +1,72 @@
-"""Dark observability theme for the security report dashboard."""
+"""Shared light SOC monitoring design system."""
 import streamlit as st
 
 
 def render_theme() -> None:
-    st.set_page_config(page_title="SOC Security Assessment Report", page_icon="🛡️", layout="wide")
+    st.set_page_config(page_title="BunkerWeb Security Monitor", page_icon="🛡️", layout="wide")
     st.markdown(
         """
         <style>
-        :root { --ink:#e6edf5; --muted:#94a3b8; --blue:#28a9e0; --line:#26384b; --surface:#111e2c; }
-        [data-testid="stAppViewContainer"] { background:#0b1420; color:var(--ink); }
-        [data-testid="stHeader"] { display:none; height:0; }
-        [data-testid="stToolbar"] { display:none; }
-        [data-testid="stMainBlockContainer"] { max-width:1320px; margin:0 auto; padding:1.25rem 2rem 3rem; }
-        [data-testid="stMainBlockContainer"] > div { gap:.8rem; }
-        [data-testid="stSidebar"] { background:#fff; border-right:1px solid #e6e9ed; }
-        [data-testid="stSidebar"] > div:first-child { padding:1.2rem .9rem; }
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color:#de6d24; }
-        [data-testid="stSidebar"] [role="radiogroup"] { gap:.35rem; }
-        [data-testid="stSidebar"] [role="radio"] { background:#fff; border:1px solid transparent; border-left:3px solid transparent; border-radius:4px; padding:.58rem .62rem; }
-        [data-testid="stSidebar"] [role="radio"]:hover { background:#fff7f1; border-color:#f5dcc8; border-left-color:#e8782f; }
-        [data-testid="stSidebar"] [role="radio"] p { color:#d96c24 !important; font-weight:600; }
-        [data-testid="stSidebar"] [role="radio"][aria-checked="true"] { background:#fff2e8; border-color:#f2d2b8; border-left-color:#e8782f; }
-        [data-testid="stSidebar"] [role="radio"][aria-checked="true"] p { color:#b9500d !important; font-weight:750; }
-        [data-testid="stSidebar"] [role="radio"] > label > div:first-child { display:none; }
-        [data-testid="stSidebar"] [data-baseweb="radio"] { background:#fff; border:1px solid transparent; border-left:3px solid transparent; border-radius:4px; padding:.58rem .62rem; color:#d96c24; }
-        [data-testid="stSidebar"] [data-baseweb="radio"]:hover { background:#fff7f1; border-color:#f5dcc8; border-left-color:#e8782f; }
-        [data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked) { background:#fff2e8; border-color:#f2d2b8; border-left-color:#e8782f; color:#b9500d; font-weight:750; }
+        :root {
+          --ink:#243247; --muted:#718096; --orange:#e87524; --orange-soft:#fff3e8;
+          --line:#e5e9ef; --surface:#fff; --canvas:#f5f7fa; --green:#20875a;
+        }
+        [data-testid="stAppViewContainer"] { background:var(--canvas); color:var(--ink); }
+        [data-testid="stHeader"], [data-testid="stToolbar"] { display:none; height:0; }
+        [data-testid="stMainBlockContainer"] { max-width:1320px; margin:0 auto; padding:1.4rem 2rem 3rem; }
+        [data-testid="stMainBlockContainer"] > div { gap:1rem; }
+        [data-testid="stSidebar"] { background:#fff; border-right:1px solid var(--line); }
+        [data-testid="stSidebar"] > div:first-child { padding:1.15rem .85rem; }
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color:#c7651f; }
+        [data-testid="stSidebar"] [role="radiogroup"] { gap:.3rem; }
+        [data-testid="stSidebar"] [data-baseweb="radio"] {
+          background:#fff; border:1px solid transparent; border-left:3px solid transparent;
+          border-radius:6px; padding:.62rem .7rem; color:#596779; transition:all .15s ease;
+        }
+        [data-testid="stSidebar"] [data-baseweb="radio"]:hover { background:#fff8f2; color:#bd5c18; }
+        [data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked) {
+          background:var(--orange-soft); border-color:#f5dcc8; border-left-color:var(--orange);
+          color:#bd5c18; font-weight:700;
+        }
         [data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child { display:none; }
+        [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color:#8a96a5; }
         h1,h2,h3 { color:var(--ink) !important; letter-spacing:-.02em; }
-        h1 { font-size:2rem !important; }
-        h2 { font-size:1.2rem !important; }
+        h1 { font-size:1.9rem !important; }
+        h2 { font-size:1.38rem !important; }
+        h3 { font-size:1rem !important; }
         p, label, [data-testid="stCaptionContainer"] { color:var(--muted); }
-        [data-testid="stMetric"] { background:#142333; border:1px solid var(--line); border-radius:5px; padding:13px 16px; box-shadow:none; }
-        [data-testid="stMetricLabel"] { color:var(--muted); }
-        [data-testid="stMetricValue"] { color:#f1f5f9; }
-        [data-testid="stVerticalBlockBorderWrapper"] { background:var(--surface); border:1px solid var(--line); border-radius:6px; box-shadow:none; }
-        .stButton > button, .stDownloadButton > button { background:#182a3b; color:#e6edf5; border:1px solid #30465c; border-radius:4px; min-height:2.35rem; font-weight:600; }
-        .stButton > button:hover, .stDownloadButton > button:hover { background:#203b52; border-color:#28a9e0; color:white; }
-        .stButton > button[kind="primary"] { background:#0879ad; border-color:#1294c9; }
-        [data-testid="stDataFrame"] { border:1px solid var(--line); border-radius:5px; }
-        [data-testid="stProgressBar"] > div > div { background:#21a1d2; }
-        input, textarea, [data-baseweb="select"] > div { background:#0d1926 !important; color:var(--ink) !important; border-color:#30465c !important; border-radius:4px !important; }
-        .app-brand { display:flex; align-items:center; gap:.8rem; border-bottom:1px solid var(--line); padding:.15rem 0 .85rem; margin-bottom:.6rem; }
-        .brand-mark { display:grid; place-items:center; width:42px; height:42px; background:#0879ad; border:1px solid #39b5e5; border-radius:7px; color:#fff; font-size:1rem; font-weight:800; }
-        .brand-name { color:#edf4fb; font-size:1rem; font-weight:750; letter-spacing:.04em; }
-        .brand-name span { color:#42b8e6; font-size:.72rem; margin-left:.4rem; }
-        .brand-subtitle { color:#8396aa; font-size:.78rem; margin-top:.12rem; }
-        .side-label { color:#c45d18; font-size:.68rem; font-weight:750; letter-spacing:.12em; margin:.8rem 0 .35rem; }
-        .side-footer { color:#d96c24; font-size:.72rem; border-top:1px solid #f0e2d8; margin-top:1rem; padding-top:.7rem; }
-        .section-eyebrow { color:#6f879b; font-size:.68rem; font-weight:750; letter-spacing:.12em; margin-bottom:.4rem; }
-        .console { background:#080f17; color:#cbd5e1; border:1px solid #26384b; border-radius:4px; padding:12px 14px; font:12px/1.6 Consolas,Monaco,monospace; height:300px; overflow-y:auto; }
-        .console-line { border-bottom:1px solid #ffffff0d; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
-        .console-time { color:#718096; } .console-error { color:#ff7272; } .console-warning { color:#f3c969; } .console-info { color:#58b8e8; }
-        .console-source { color:#8fb7cc; }
-        .report-footer { color:#718096; border-top:1px solid var(--line); margin-top:2rem; padding-top:.8rem; font-size:.8rem; }
+        [data-testid="stVerticalBlockBorderWrapper"] {
+          background:var(--surface); border:1px solid var(--line); border-radius:10px;
+          box-shadow:0 2px 7px rgba(31,45,61,.035);
+        }
+        [data-testid="stMetric"] { background:#fff; border:1px solid var(--line); border-radius:8px; padding:13px 15px; }
+        [data-testid="stMetricLabel"] { color:#718096; }
+        [data-testid="stMetricValue"] { color:#243247; font-size:1.55rem; }
+        .stButton > button, .stDownloadButton > button {
+          background:#fff; color:#4b596b; border:1px solid #d9e0e8; border-radius:6px;
+          min-height:2.45rem; font-weight:650; transition:all .15s ease;
+        }
+        .stButton > button:hover, .stDownloadButton > button:hover { background:#fff8f2; border-color:#e87524; color:#bd5c18; }
+        .stButton > button[kind="primary"] { background:#e87524; border-color:#e87524; color:#fff; }
+        .stButton > button[kind="primary"]:hover { background:#cf6218; color:#fff; }
+        [data-testid="stDataFrame"] { border:1px solid var(--line); border-radius:7px; }
+        [data-testid="stProgressBar"] > div > div { background:#e87524; }
+        input, textarea, [data-baseweb="select"] > div { background:#fff !important; color:#243247 !important; border-color:#d9e0e8 !important; border-radius:6px !important; }
+        .app-brand { display:flex; align-items:center; gap:.8rem; padding:.1rem 0 1rem; margin-bottom:.45rem; border-bottom:1px solid var(--line); }
+        .brand-mark { display:grid; place-items:center; width:42px; height:42px; background:#fff3e8; border:1px solid #f2d5bd; border-radius:9px; color:#d5681d; font-size:1rem; font-weight:800; }
+        .brand-name { color:#243247; font-size:1rem; font-weight:780; letter-spacing:.035em; }
+        .brand-name span { color:#dd6e20; font-size:.7rem; margin-left:.4rem; letter-spacing:.08em; }
+        .brand-subtitle { color:#8591a0; font-size:.78rem; margin-top:.12rem; }
+        .side-label { color:#a4aeba; font-size:.67rem; font-weight:750; letter-spacing:.13em; margin:.8rem 0 .35rem; }
+        .side-footer { color:#8a96a5; font-size:.72rem; border-top:1px solid var(--line); margin-top:1rem; padding-top:.75rem; }
+        .page-heading { display:flex; justify-content:space-between; align-items:end; gap:1rem; margin:.25rem 0 .1rem; }
+        .page-eyebrow { color:#df7023; font-size:.68rem; font-weight:750; letter-spacing:.12em; text-transform:uppercase; }
+        .section-eyebrow { color:#8d98a6; font-size:.67rem; font-weight:750; letter-spacing:.12em; margin-bottom:.35rem; }
+        .console { background:#18212b; color:#e5ebf1; border:1px solid #303d49; border-radius:7px; padding:13px 15px; font:12px/1.65 Consolas,Monaco,monospace; height:310px; overflow-y:auto; }
+        .console-line { border-bottom:1px solid #ffffff12; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
+        .console-time { color:#9aa7b3; } .console-error { color:#ff8278; } .console-warning { color:#f5c56a; }
+        .console-info { color:#75c3ef; } .console-critical { color:#ff665c; } .console-source { color:#b5c5d3; }
+        .report-footer { color:#98a2af; border-top:1px solid var(--line); margin-top:2rem; padding-top:.8rem; font-size:.78rem; }
         </style>
         """,
         unsafe_allow_html=True,
