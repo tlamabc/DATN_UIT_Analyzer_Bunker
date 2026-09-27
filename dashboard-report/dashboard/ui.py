@@ -18,7 +18,6 @@ from .theme import render_theme
 
 PAGES = ["Overview", "Monitoring", "Events", "Reports"]
 PAGE_LABELS = {"Overview": "Tổng quan", "Monitoring": "Giám sát", "Events": "Sự kiện", "Reports": "Báo cáo"}
-PAGE_SLUGS = {"Overview": "overview", "Monitoring": "monitoring", "Events": "events", "Reports": "reports"}
 PAGE_ICONS = {"Overview": "▦", "Monitoring": "◷", "Events": "≡", "Reports": "▤"}
 RISK_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
 CHART_COLORS = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#38bdf8", "#a78bfa"]
@@ -35,9 +34,8 @@ def _render_brand() -> None:
 
 
 def _sidebar_inputs(db_ok: bool, db_message: str):
-    page_slugs = {slug: page for page, slug in PAGE_SLUGS.items()}
-    selected = str(st.query_params.get("page", "overview")).lower()
-    return page_slugs.get(selected, "Overview")
+    selected = st.session_state.get("soc-navigation", "Overview")
+    return selected if selected in PAGES else "Overview"
 
 
 def _rolling_window(page: str) -> tuple[datetime, datetime, str]:
@@ -58,17 +56,11 @@ def _render_page_heading(page: str) -> None:
         status_label = "ĐANG KẾT NỐI" if st.session_state.get("db-connected", True) else "MẤT KẾT NỐI"
         st.markdown(f"<div class='soc-topline'><strong>BUNKERWEB · SOC</strong><span class='{status_class}'>● CƠ SỞ DỮ LIỆU · {status_label}</span></div>",
                     unsafe_allow_html=True)
-        nav_items = []
-        for option in PAGES:
-            active = " is-active" if option == page else ""
-            nav_items.append(
-                f'<a class="soc-nav-item{active}" href="?page={PAGE_SLUGS[option]}" '
-                f'aria-current="{"page" if option == page else "false"}" title="{html.escape(PAGE_LABELS[option])}">'
-                f'<span class="soc-nav-icon" aria-hidden="true">{PAGE_ICONS[option]}</span>'
-                f'<span class="soc-nav-label">{html.escape(PAGE_LABELS[option])}</span></a>'
-            )
-        st.markdown('<nav class="soc-menubar" aria-label="Điều hướng SOC">' + "".join(nav_items) + "</nav>",
-                    unsafe_allow_html=True)
+        st.radio(
+            "Điều hướng SOC", PAGES, index=PAGES.index(page),
+            format_func=lambda option: f"{PAGE_ICONS[option]}  {PAGE_LABELS[option]}",
+            horizontal=True, label_visibility="collapsed", key="soc-navigation",
+        )
         st.markdown(
             f"<div class='page-heading'><div class='page-eyebrow'>TRUNG TÂM ĐIỀU HÀNH AN NINH</div>"
             f"<h1>{PAGE_LABELS[page]}</h1><p>{descriptions[page]}</p></div>", unsafe_allow_html=True,

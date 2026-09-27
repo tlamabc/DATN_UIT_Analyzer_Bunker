@@ -43,13 +43,13 @@ def render_theme() -> None:
         .st-key-soc-sticky-header { position:sticky; top:0; z-index:1000; background:rgba(11,15,25,.97); border-bottom:1px solid #263244; padding:.2rem 0 .55rem; margin-bottom:.8rem; backdrop-filter:blur(12px); }
         .soc-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.35rem .75rem; padding:.2rem 0 .55rem; color:#e5eaf2; font-size:.8rem; }
         .soc-topline span { white-space:normal; text-align:right; }
-        .soc-menubar { display:grid; width:min(100%,760px); margin:.25rem auto .85rem; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.55rem; }
-        .soc-nav-item { box-sizing:border-box; display:flex; min-width:0; min-height:50px; align-items:center; justify-content:center; gap:.55rem; padding:.5rem .7rem; color:#cbd5e1; background:#111827; border:1px solid #344258; border-radius:6px; text-decoration:none !important; white-space:nowrap; transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease; }
-        .soc-nav-item:hover { color:#fff; background:#202e43; border-color:#fb923c; transform:translateY(-2px); box-shadow:0 6px 16px #0005; }
-        .soc-nav-item.is-active { color:#fff; background:#c65d20; border-color:#fb923c; font-weight:700; }
-        .soc-nav-item.is-active:hover { background:#e2732f; }
-        .soc-nav-icon { display:inline-flex; width:1.2rem; flex:0 0 1.2rem; align-items:center; justify-content:center; font-size:1.2rem; line-height:1; }
-        .soc-nav-label { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+        [data-testid="stRadio"] [role="radiogroup"] { display:grid !important; width:min(100%,760px); margin:.25rem auto .85rem; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.55rem; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] { box-sizing:border-box; display:flex; min-width:0; min-height:50px; align-items:center; gap:.5rem; margin:0; padding:.5rem .7rem; color:#cbd5e1; background:#111827; border:1px solid #344258; border-radius:6px; white-space:nowrap; transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] > div:first-child { display:none; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"]:has(input:checked) { color:#fff; background:#c65d20; border-color:#fb923c; font-weight:700; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"]:hover { color:#fff; background:#202e43; border-color:#fb923c; transform:translateY(-2px); box-shadow:0 6px 16px #0005; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"]:has(input:checked):hover { background:#e2732f; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] > div:last-child { min-width:0; white-space:nowrap; }
         .page-heading { margin:.1rem 0 0; } .page-heading p { margin:.1rem 0 0; line-height:1.4; }
         .console { background:#070b12; color:#dce5ef; border:1px solid #273244; border-radius:7px; padding:13px 15px; font:12px/1.65 Consolas,Monaco,monospace; height:320px; overflow-y:auto; }
         .console-line { border-bottom:1px solid #ffffff10; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
@@ -64,8 +64,8 @@ def render_theme() -> None:
         [data-testid="stHorizontalBlock"] > [data-testid="column"] { width:100% !important; min-width:0 !important; max-width:100%; flex:none !important; }
         [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] { max-width:100%; min-width:0; }
         @media (max-width: 760px) {
-          .soc-menubar { width:min(100%,440px); grid-template-columns:repeat(2,minmax(0,1fr)); gap:.45rem; }
-          .soc-nav-item { justify-content:flex-start; min-height:46px; padding:.45rem .6rem; }
+          [data-testid="stRadio"] [role="radiogroup"] { width:min(100%,440px); grid-template-columns:repeat(2,minmax(0,1fr)); gap:.45rem; }
+          [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] { min-height:46px; padding:.45rem .6rem; }
           .soc-topline { font-size:.68rem; }
         }
         @media (max-width: 640px) {
