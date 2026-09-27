@@ -12,7 +12,7 @@ def render_theme() -> None:
           --medium:#fbbf24; --safe:#34d399; }
         [data-testid="stAppViewContainer"] { background:var(--bg); color:var(--text); }
         [data-testid="stHeader"], [data-testid="stToolbar"] { display:none; height:0; }
-        [data-testid="stMainBlockContainer"] { max-width:1600px; margin:0 auto; padding:clamp(.8rem,2vw,1.5rem) clamp(.75rem,2.2vw,2rem) 2.5rem; }
+        [data-testid="stMainBlockContainer"] { width:100%; max-width:1600px; margin:0 auto; padding:clamp(.55rem,1.5vw,1.25rem) clamp(.55rem,1.5vw,1.5rem) 2rem; }
         [data-testid="stMainBlockContainer"] > div { gap:.9rem; }
         [data-testid="stSidebar"] { background:#0e1522; border-right:1px solid var(--line); }
         [data-testid="stSidebar"] > div:first-child { padding:1.15rem .85rem; }
@@ -48,7 +48,12 @@ def render_theme() -> None:
         .side-label,.page-eyebrow,.section-eyebrow { color:#fb923c; font-size:.67rem; font-weight:750; letter-spacing:.13em; }
         .side-label { margin:.8rem 0 .35rem; } .section-eyebrow { margin-bottom:.35rem; }
         .side-footer { color:#75849a; font-size:.72rem; border-top:1px solid var(--line); margin-top:1rem; padding-top:.75rem; }
-        .page-heading { margin:.25rem 0 .1rem; } .page-heading p { margin-top:-.45rem; }
+        .st-key-soc-sticky-header { position:sticky; top:0; z-index:1000; background:rgba(11,15,25,.97); border-bottom:1px solid #263244; padding:.2rem 0 .55rem; margin-bottom:.8rem; backdrop-filter:blur(12px); }
+        .st-key-soc-top-nav [data-testid="stHorizontalBlock"] { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.45rem; }
+        .st-key-soc-top-nav [data-testid="column"] { width:100% !important; min-width:0 !important; flex:none !important; }
+        .st-key-soc-top-nav .stButton > button { min-width:0; padding:.35rem .5rem; white-space:nowrap; }
+        .st-key-soc-top-nav .stButton > button p { overflow:hidden; text-overflow:ellipsis; }
+        .page-heading { margin:.1rem 0 0; } .page-heading p { margin:.1rem 0 0; line-height:1.4; }
         .console { background:#070b12; color:#dce5ef; border:1px solid #273244; border-radius:7px; padding:13px 15px; font:12px/1.65 Consolas,Monaco,monospace; height:320px; overflow-y:auto; }
         .console-line { border-bottom:1px solid #ffffff10; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
         .console-time { color:#718096; } .console-error,.console-critical { color:#f87171; } .console-warning { color:#fbbf24; }
@@ -58,17 +63,18 @@ def render_theme() -> None:
         [data-testid="stMarkdownContainer"] h4 { color:#fdba74 !important; }
         .db-live { color:#34d399; font-weight:700; } .db-down { color:#f87171; font-weight:700; }
         .report-footer { color:#64748b; border-top:1px solid var(--line); margin-top:2rem; padding-top:.8rem; font-size:.76rem; }
-        [data-testid="stHorizontalBlock"] { gap:clamp(.45rem,1vw,.9rem); align-items:stretch; }
-        [data-testid="stHorizontalBlock"] > [data-testid="column"] { min-width:0; }
+        [data-testid="stHorizontalBlock"] { display:grid !important; width:100%; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:clamp(.45rem,1vw,.9rem); align-items:stretch; }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] { width:100% !important; min-width:0 !important; max-width:100%; flex:none !important; }
         [data-testid="stDataFrame"], [data-testid="stPlotlyChart"] { max-width:100%; min-width:0; }
-        @media (max-width: 1050px) {
-          [data-testid="stHorizontalBlock"] { flex-wrap:wrap; }
-          [data-testid="stHorizontalBlock"] > [data-testid="column"] { flex:1 1 calc(50% - .45rem); min-width:min(100%, 260px); }
+        @media (max-width: 760px) {
+          .st-key-soc-top-nav .stButton > button p { display:none; }
+          .st-key-soc-top-nav .stButton > button { justify-content:center; min-height:2.65rem; }
+          .st-key-soc-top-nav .stButton > button svg { margin:0; }
         }
         @media (max-width: 640px) {
-          [data-testid="stHorizontalBlock"] > [data-testid="column"] { flex:1 1 100%; min-width:100%; }
           [data-testid="stVerticalBlockBorderWrapper"] > div { padding:12px; }
           .brand-name { font-size:.88rem; }
+          h1 { font-size:1.45rem !important; }
           .page-heading p { line-height:1.45; }
         }
         </style>

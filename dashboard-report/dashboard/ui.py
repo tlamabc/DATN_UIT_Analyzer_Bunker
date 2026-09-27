@@ -17,7 +17,9 @@ from .security_insights import suspicious_ip_candidates
 from .theme import render_theme
 
 PAGES = ["Overview", "Monitoring", "Events", "Reports"]
-PAGE_LABELS = {"Overview": "Tổng quan", "Monitoring": "Giám sát", "Events": "Sự kiện AI", "Reports": "Báo cáo"}
+PAGE_LABELS = {"Overview": "Tổng quan", "Monitoring": "Giám sát", "Events": "Sự kiện", "Reports": "Báo cáo"}
+PAGE_ICONS = {"Overview": ":material/dashboard:", "Monitoring": ":material/monitor_heart:",
+              "Events": ":material/list_alt:", "Reports": ":material/description:"}
 RISK_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
 CHART_COLORS = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#38bdf8", "#a78bfa"]
 LIVE_WINDOWS = {"15 phút": timedelta(minutes=15), "1 giờ": timedelta(hours=1),
@@ -43,10 +45,8 @@ def _sidebar_inputs(db_ok: bool, db_message: str):
         badge = "db-live" if db_ok else "db-down"
         status = "● CƠ SỞ DỮ LIỆU · ĐANG KẾT NỐI" if db_ok else "● CƠ SỞ DỮ LIỆU · MẤT KẾT NỐI"
         st.markdown(f"<div class='{badge}'>{status}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='side-label'>KHÔNG GIAN SOC</div>", unsafe_allow_html=True)
-        page = st.radio("Phân hệ", PAGES, format_func=lambda value: PAGE_LABELS[value],
-                        label_visibility="collapsed", key="soc-navigation")
-    return page
+        st.caption("Điều hướng luôn hiển thị ở thanh tiêu đề.")
+    return st.session_state.get("soc-navigation", "Overview")
 
 
 def _rolling_window(page: str) -> tuple[datetime, datetime, str]:
@@ -62,10 +62,23 @@ def _render_page_heading(page: str) -> None:
         "Events": "Điều tra sự kiện BunkerWeb đã được AI phân loại, giải thích và đề xuất xử lý.",
         "Reports": "Báo cáo sự cố cập nhật liên tục, phục vụ bàn giao và kiểm toán SOC.",
     }
-    st.markdown(
-        f"<div class='page-heading'><div class='page-eyebrow'>TRUNG TÂM ĐIỀU HÀNH AN NINH</div>"
-        f"<h1>{PAGE_LABELS[page]}</h1><p>{descriptions[page]}</p></div>", unsafe_allow_html=True,
-    )
+    with st.container(key="soc-sticky-header"):
+        with st.container(key="soc-top-nav"):
+            nav_columns = st.columns(4)
+            for column, option in zip(nav_columns, PAGES):
+                selected = option == page
+                if column.button(
+                    PAGE_LABELS[option], icon=PAGE_ICONS[option],
+                    type="primary" if selected else "secondary",
+                    key=f"soc-nav-{option.lower()}", help=PAGE_LABELS[option],
+                    use_container_width=True,
+                ) and not selected:
+                    st.session_state["soc-navigation"] = option
+                    st.rerun()
+        st.markdown(
+            f"<div class='page-heading'><div class='page-eyebrow'>TRUNG TÂM ĐIỀU HÀNH AN NINH</div>"
+            f"<h1>{PAGE_LABELS[page]}</h1><p>{descriptions[page]}</p></div>", unsafe_allow_html=True,
+        )
 
 
 def _filtered_events(events: pd.DataFrame, page: str) -> pd.DataFrame:
