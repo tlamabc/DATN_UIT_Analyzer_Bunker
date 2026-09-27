@@ -45,6 +45,9 @@ def render_theme() -> None:
         .soc-topline span { white-space:normal; text-align:right; }
         [data-testid="stRadio"] [role="radiogroup"] { display:grid !important; width:min(100%,760px); margin:.25rem auto .85rem; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.55rem; }
         [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] { box-sizing:border-box; display:flex; min-width:0; min-height:50px; align-items:center; gap:.5rem; margin:0; padding:.5rem .7rem; color:#cbd5e1; background:#111827; border:1px solid #344258; border-radius:6px; white-space:nowrap; transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease; }
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] label,
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] p,
+        [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] span { color:#fff !important; font-weight:700 !important; }
         [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"] > div:first-child { display:none; }
         [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"]:has(input:checked) { color:#fff; background:#c65d20; border-color:#fb923c; font-weight:700; }
         [data-testid="stRadio"] [role="radiogroup"] [data-baseweb="radio"]:hover { color:#fff; background:#202e43; border-color:#fb923c; transform:translateY(-2px); box-shadow:0 6px 16px #0005; }
