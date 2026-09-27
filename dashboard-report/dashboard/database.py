@@ -192,15 +192,20 @@ def fetch_waf_metrics(start: datetime, end: datetime) -> dict[str, int | float]:
             "unique_attackers": unique_attackers, "block_rate": rate}
 
 
-def fetch_blocking_ips(start: datetime, end: datetime, limit: int = 100):
+def fetch_blocking_ips(start: datetime, end: datetime, limit: int = 100, ip_search: str = ""):
     with db_connect() as conn, conn.cursor() as cursor:
         ensure_tables(conn)
-        cursor.execute(
+        query = (
             "SELECT client_ip, COUNT(*) AS blocked_requests, MAX(occurred_at) AS last_seen "
             "FROM waf_request_observations WHERE blocked=TRUE AND client_ip IS NOT NULL "
-            "AND occurred_at >= %s AND occurred_at <= %s GROUP BY client_ip "
-            "ORDER BY blocked_requests DESC, last_seen DESC LIMIT %s",
-            (start, end, max(1, min(limit, 1000))),
+            "AND occurred_at >= %s AND occurred_at <= %s"
         )
+        params: list[object] = [start, end]
+        if ip_search:
+            query += " AND client_ip ILIKE %s"
+            params.append(f"%{ip_search}%")
+        query += " GROUP BY client_ip ORDER BY blocked_requests DESC, last_seen DESC LIMIT %s"
+        params.append(max(1, min(limit, 1000)))
+        cursor.execute(query, params)
         return cursor.fetchall()
 

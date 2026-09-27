@@ -30,29 +30,43 @@ def _render_brand() -> None:
 
 
 def _sidebar_inputs(db_ok: bool, db_message: str):
-    now = datetime.now(APP_TZ)
     with st.sidebar:
+        st.markdown("""
+        <div class="side-brand"><div class="brand-mark">BW</div><div>
+        <div class="side-brand-title">BUNKERWEB</div><div class="side-brand-caption">SOC SECURITY MONITOR</div>
+        </div></div>
+        """, unsafe_allow_html=True)
         st.markdown("<div class='side-label'>SYSTEM STATUS</div>", unsafe_allow_html=True)
         badge = "db-live" if db_ok else "db-down"
         symbol = "●" if db_ok else "●"
         st.markdown(f"<div class='{badge}'>{symbol} DATABASE {html.escape(db_message.upper())}</div>", unsafe_allow_html=True)
         st.markdown("<div class='side-label'>NAVIGATION</div>", unsafe_allow_html=True)
         page = st.radio("Sections", PAGES, label_visibility="collapsed", key="soc-navigation")
-        st.markdown("<div class='side-label'>TIME RANGE · UTC+07</div>", unsafe_allow_html=True)
-        from_date = st.date_input("From date", value=now.date(), key="from-date")
-        from_time = st.time_input("From time", value=time.min, key="from-time")
-        to_date = st.date_input("To date", value=now.date(), key="to-date")
-        to_time = st.time_input("To time", value=now.time().replace(microsecond=0), key="to-time")
-        refresh = st.button("↻ Refresh data", use_container_width=True, key="refresh-data")
-        st.markdown("<div class='side-label'>PROJECT</div>", unsafe_allow_html=True)
-        st.caption("AI-Enhanced Open Source WAF Security Assessment Lab")
-        st.markdown("<div class='side-footer'>Đặng Thanh Lâm · Trương Tấn Đạt</div>", unsafe_allow_html=True)
+    return page
+
+
+def _page_time_range(page: str):
+    now = datetime.now(APP_TZ)
+    key = page.lower()
+    with st.container(border=True):
+        st.markdown("<div class='section-eyebrow'>REPORT WINDOW · ASIA/HO_CHI_MINH (UTC+07)</div>", unsafe_allow_html=True)
+        fields = st.columns([1.1, 1, 1.1, 1, .75])
+        from_date = fields[0].date_input("From date", value=now.date(), key=f"{key}-from-date")
+        from_time = fields[1].time_input("From time", value=time.min, key=f"{key}-from-time")
+        to_date = fields[2].date_input("To date", value=now.date(), key=f"{key}-to-date")
+        to_time = fields[3].time_input("To time", value=now.time().replace(microsecond=0), key=f"{key}-to-time")
+        if fields[4].button("↻ Refresh", use_container_width=True, key=f"{key}-refresh"):
+            st.cache_data.clear()
+            st.rerun()
     start = datetime.combine(from_date, from_time, tzinfo=APP_TZ)
     end = datetime.combine(to_date, to_time, tzinfo=APP_TZ)
-    return page, start, end, from_date, to_date, refresh
+    if end < start:
+        st.error("The end of the selected time range must be after its start.")
+        st.stop()
+    return start, end, from_date, to_date
 
 
-def _render_page_heading(page: str, start: datetime, end: datetime) -> None:
+def _render_page_heading(page: str) -> None:
     descriptions = {
         "Overview": "Attack activity, blocked requests and source IPs that need analyst review.",
         "Monitoring": "Analyzer process health, scan progress and live collector output.",
@@ -61,21 +75,20 @@ def _render_page_heading(page: str, start: datetime, end: datetime) -> None:
         "Reports": "Export the selected security incident set for audit and review.",
     }
     st.markdown(
-        f"<div class='page-heading'><div><div class='page-eyebrow'>SECURITY OPERATIONS CENTER</div>"
-        f"<h1>{page}</h1><p>{descriptions[page]}</p></div>"
-        f"<div class='range-chip'>{start:%d %b %H:%M} — {end:%d %b %H:%M} · UTC+07</div></div>",
-        unsafe_allow_html=True,
+        f"<div class='page-heading'><div class='page-eyebrow'>SECURITY OPERATIONS CENTER</div>"
+        f"<h1>{page}</h1><p>{descriptions[page]}</p></div>", unsafe_allow_html=True,
     )
 
 
-def _filtered_events(events: pd.DataFrame) -> pd.DataFrame:
-    with st.sidebar:
-        st.markdown("<div class='side-label'>EVENT FILTERS</div>", unsafe_allow_html=True)
+def _filtered_events(events: pd.DataFrame, page: str) -> pd.DataFrame:
+    with st.container(border=True):
+        st.markdown("<div class='section-eyebrow'>INCIDENT FILTERS</div>", unsafe_allow_html=True)
+        filter_cols = st.columns([1, 1.3, 1.1])
         present_severities = [value for value in SEVERITY_ORDER if value in set(events["severity"].dropna())]
-        selected_severities = st.multiselect("Severity", present_severities, default=present_severities, key="severity-filter")
+        selected_severities = filter_cols[0].multiselect("Severity", present_severities, default=present_severities, key=f"{page}-severity-filter")
         attacks = sorted(str(value) for value in events["attack_type"].dropna().unique())
-        selected_attacks = st.multiselect("Attack type", attacks, default=attacks, key="attack-filter")
-        ip_search = st.text_input("Source IP", placeholder="Search IP address…", key="source-ip-filter").strip().lower()
+        selected_attacks = filter_cols[1].multiselect("Attack type", attacks, default=attacks, key=f"{page}-attack-filter")
+        ip_search = filter_cols[2].text_input("Source IP", placeholder="Search IP address…", key=f"{page}-source-ip-filter").strip().lower()
     filtered = events[events["severity"].isin(selected_severities) & events["attack_type"].astype(str).isin(selected_attacks)].copy()
     if ip_search:
         filtered = filtered[filtered["client_ip"].fillna("").astype(str).str.lower().str.contains(ip_search, regex=False)]
@@ -86,11 +99,12 @@ def _metric_row(events: pd.DataFrame, waf: dict) -> tuple[int, int]:
     severity = events["severity"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
     critical_high = int(severity.isin(["critical", "high"]).sum())
     cards = st.columns(4)
-    cards[0].metric("Blocked requests", f"{waf['blocked_requests']:,}")
+    cards[0].metric("Security events", f"{len(events):,}")
     cards[1].metric("Critical / High", f"{critical_high:,}")
     cards[2].metric("Unique attackers", f"{waf['unique_attackers']:,}")
     rate_label = f"{waf['block_rate']:.1f}%" if waf["total_requests"] else "No data"
     cards[3].metric("WAF block rate", rate_label, help="Blocked access.log requests divided by observed access.log requests in this time range.")
+    st.caption(f"WAF observation: {waf['blocked_requests']:,} blocked of {waf['total_requests']:,} access requests · metrics use the selected time window.")
     return critical_high, len(events)
 
 
@@ -123,11 +137,11 @@ def _render_attack_timeline(events: pd.DataFrame) -> None:
     st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False})
 
 
-def _render_ip_matrix(start: datetime, end: datetime) -> None:
+def _render_ip_matrix(start: datetime, end: datetime, ip_search: str = "") -> None:
     with st.container(border=True):
         st.markdown("### Blocked source IPs")
         st.caption("Derived from observed access.log requests flagged by WAF/security status or markers.")
-        rows = fetch_blocking_ips(start, end, 100)
+        rows = fetch_blocking_ips(start, end, 100, ip_search)
         if not rows:
             st.info("No blocked source IPs were observed in the selected range.")
             return
@@ -153,7 +167,7 @@ def _render_overview(events: pd.DataFrame, waf: dict, start: datetime, end: date
         with st.container(border=True):
             st.markdown("### Incident trend")
             _render_attack_timeline(events)
-    _render_ip_matrix(start, end)
+    _render_ip_matrix(start, end, st.session_state.get("Overview-source-ip-filter", "").strip())
 
 
 def _render_console() -> None:
@@ -202,14 +216,18 @@ def _render_monitoring(analyzer: dict) -> None:
 
 
 def _render_incident_inspector(event: pd.Series) -> None:
-    with st.container(border=True):
-        st.markdown(f"### AI incident inspector · {event.get('attack_type', 'Security incident')}")
-        st.markdown(f"**Severity:** <span class='severity-{str(event.get('severity', 'info')).lower()}'>{html.escape(str(event.get('severity') or 'Info'))}</span>　·　**Source IP:** `{html.escape(str(event.get('client_ip') or 'Unknown'))}`", unsafe_allow_html=True)
-        st.markdown("#### Raw log payload")
-        st.code(str(event.get("raw_log") or "No raw log payload stored."), language=None)
-        st.markdown("#### Báo cáo đề xuất khắc phục từ AI")
-        recommendation = str(event.get("recommendation") or "Chưa có khuyến nghị được lưu.")
-        st.markdown(recommendation)
+    st.markdown(f"### AI incident inspector · {event.get('attack_type', 'Security incident')}")
+    st.markdown(f"**Severity:** <span class='severity-{str(event.get('severity', 'info')).lower()}'>{html.escape(str(event.get('severity') or 'Info'))}</span>　·　**Source IP:** `{html.escape(str(event.get('client_ip') or 'Unknown'))}`", unsafe_allow_html=True)
+    raw_col, recommendation_col = st.columns([1, 1.2])
+    with raw_col:
+        with st.container(border=True):
+            st.markdown("#### Raw log payload")
+            st.code(str(event.get("raw_log") or "No raw log payload stored."), language=None)
+    with recommendation_col:
+        with st.container(border=True):
+            st.markdown("#### Báo cáo đề xuất khắc phục từ AI")
+            recommendation = str(event.get("recommendation") or "Chưa có khuyến nghị được lưu.")
+            st.markdown(recommendation)
 
 
 def _render_events(events: pd.DataFrame) -> None:
@@ -297,40 +315,30 @@ def _render_reports(events: pd.DataFrame, start: datetime, end: datetime, from_d
 def run_app() -> None:
     render_theme()
     db_ok, db_message = database_status()
-    st.markdown("""
-    <div class="brand"><div class="brand-mark">BW</div><div>
-    <div class="brand-name">BUNKERWEB <span>SOC SECURITY MONITOR</span></div>
-    <div class="brand-subtitle">AI-assisted web attack analysis · Security Operations Center</div></div></div>
-    """, unsafe_allow_html=True)
-    page, start, end, from_date, to_date, refresh = _sidebar_inputs(db_ok, db_message)
-    if refresh:
-        st.cache_data.clear()
-        st.rerun()
-    if end < start:
-        st.error("The end of the selected time range must be after its start.")
-        st.stop()
+    page = _sidebar_inputs(db_ok, db_message)
     if not db_ok:
         st.error(f"PostgreSQL is unavailable ({db_message}). Check the database service and DB configuration.")
         st.stop()
 
+    _render_page_heading(page)
+    timed_pages = {"Overview", "Events", "Reports"}
+    if page in timed_pages:
+        start, end, from_date, to_date = _page_time_range(page)
+    else:
+        start = end = from_date = to_date = None
+
     try:
-        all_events = fetch_events(start, end)
-        waf = fetch_waf_metrics(start, end)
         analyzer = analyzer_status()
+        if page in timed_pages:
+            all_events = fetch_events(start, end)
+            events = _filtered_events(all_events, page)
+        else:
+            events = pd.DataFrame()
+        waf = fetch_waf_metrics(start, end) if page == "Overview" else None
     except Exception as exc:
         st.error("Could not load SOC data. Check PostgreSQL connectivity and schema.")
         st.exception(exc)
         st.stop()
-    events = _filtered_events(all_events)
-
-    page_details = {
-        "Overview": "Blocked requests, attack distribution and source IP triage.",
-        "Monitoring": "Analyzer process health, scan progress and live logs.",
-        "Events": "Investigate AI-enriched incidents and inspect the original log payload.",
-        "Configuration": "Review the active analyzer language and collector settings.",
-        "Reports": "Download filtered incidents for audit and project records.",
-    }
-    st.markdown(f"<div class='page-heading'><div class='page-eyebrow'>SECURITY OPERATIONS CENTER</div><h1>{page}</h1><p>{page_details[page]}</p></div>", unsafe_allow_html=True)
     if page == "Overview":
         _render_overview(events, waf, start, end)
     elif page == "Monitoring":
@@ -341,4 +349,4 @@ def run_app() -> None:
         _render_configuration(analyzer)
     elif page == "Reports":
         _render_reports(events, start, end, from_date, to_date)
-    st.markdown("<div class='report-footer'>SOC Security Monitor · Event measurements are based on the selected window</div>", unsafe_allow_html=True)
+    st.markdown("<div class='report-footer'>SOC Security Monitor · Đặng Thanh Lâm · Trương Tấn Đạt</div>", unsafe_allow_html=True)
