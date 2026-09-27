@@ -5,5 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py .
+COPY collector ./collector
 # The collector needs to read host-owned BunkerWeb logs. The mount stays read-only.
 CMD ["python", "main.py"]
