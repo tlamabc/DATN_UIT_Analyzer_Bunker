@@ -17,11 +17,11 @@ def suspicious_ip_candidates(events: pd.DataFrame) -> pd.DataFrame:
     if candidates.empty:
         return pd.DataFrame(columns=columns)
 
-    candidates["high_critical_flag"] = candidates["severity"].astype(str).str.lower().isin({"high", "critical"})
+    candidates["high_critical_flag"] = candidates["risk_score"].astype(str).str.lower().isin({"high", "critical"})
     summary = candidates.groupby("client_ip", as_index=False).agg(
         event_count=("id", "count"),
         high_critical=("high_critical_flag", "sum"),
-        attack_types=("attack_type", "nunique"),
+        attack_types=("classification", "nunique"),
         last_seen=("timestamp", "max"),
     )
     summary = summary[(summary["event_count"] >= 3) | (summary["high_critical"] > 0)]

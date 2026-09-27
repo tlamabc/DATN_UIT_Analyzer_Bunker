@@ -18,11 +18,35 @@ def initialize_database() -> None:
                 id BIGSERIAL PRIMARY KEY,
                 timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 client_ip VARCHAR(45), raw_log TEXT NOT NULL,
-                attack_type VARCHAR(255) NOT NULL,
-                severity VARCHAR(16) NOT NULL CHECK (severity IN ('Critical','High','Medium','Low')),
+                classification VARCHAR(255) NOT NULL,
+                risk_score VARCHAR(16) NOT NULL CHECK (risk_score IN ('Critical','High','Medium','Low')),
+                explanation TEXT NOT NULL DEFAULT '',
+                correlation TEXT NOT NULL DEFAULT '',
                 recommendation TEXT NOT NULL
             )
         """)
+        # Migrate an older deployment (attack_type/severity) onto the new AI-pipeline schema.
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='security_events' AND column_name='attack_type') THEN
+                    ALTER TABLE security_events RENAME COLUMN attack_type TO classification;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='security_events' AND column_name='severity') THEN
+                    ALTER TABLE security_events RENAME COLUMN severity TO risk_score;
+                END IF;
+            END $$;
+        """)
+        cur.execute("ALTER TABLE security_events ADD COLUMN IF NOT EXISTS explanation TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE security_events ADD COLUMN IF NOT EXISTS correlation TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE security_events DROP CONSTRAINT IF EXISTS security_events_severity_check")
+        cur.execute("ALTER TABLE security_events DROP CONSTRAINT IF EXISTS security_events_risk_score_check")
+        cur.execute(
+            "ALTER TABLE security_events ADD CONSTRAINT security_events_risk_score_check "
+            "CHECK (risk_score IN ('Critical','High','Medium','Low'))"
+        )
         cur.execute("CREATE INDEX IF NOT EXISTS security_events_timestamp_idx ON security_events (timestamp DESC)")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS analyzer_control (
@@ -136,9 +160,11 @@ def save_event(raw: str, data: dict[str, Any], analysis: dict[str, str], usage: 
     client_ip = str(client_ip)[:45] if client_ip is not None else None
     with db_connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO security_events (timestamp, client_ip, raw_log, attack_type, severity, recommendation) "
-            "VALUES (COALESCE(%s, NOW()), %s, %s, %s, %s, %s)",
-            (event_timestamp(data), client_ip, raw, analysis["attack_type"], analysis["severity"], analysis["recommendation"]),
+            "INSERT INTO security_events "
+            "(timestamp, client_ip, raw_log, classification, risk_score, explanation, correlation, recommendation) "
+            "VALUES (COALESCE(%s, NOW()), %s, %s, %s, %s, %s, %s, %s)",
+            (event_timestamp(data), client_ip, raw, analysis["classification"], analysis["risk_score"],
+             analysis["explanation"], analysis["correlation"], analysis["recommendation"]),
         )
         if usage and usage.get("total_tokens", 0) > 0:
             cur.execute(

@@ -28,18 +28,19 @@ def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime) -> byt
         Spacer(1, 3*mm),
     ]
     total = len(events)
-    critical = int((events["severity"].str.lower() == "critical").sum()) if total else 0
-    high = int((events["severity"].str.lower() == "high").sum()) if total else 0
+    critical = int((events["risk_score"].str.lower() == "critical").sum()) if total else 0
+    high = int((events["risk_score"].str.lower() == "high").sum()) if total else 0
     story.append(Paragraph(f"Events: {total} · Critical: {critical} · High: {high}", styles["Heading3"]))
-    headers = ["Timestamp", "Client IP", "Attack", "Severity", "Recommendation", "Raw log"]
+    headers = ["Timestamp", "Client IP", "Classification", "Risk", "Explanation", "Correlation", "Recommendation", "Raw log"]
     rows = [headers]
     for _, item in events.head(300).iterrows():
         timestamp = pd.to_datetime(item["timestamp"], utc=True, errors="coerce")
         stamp = timestamp.tz_convert(APP_TZ).strftime("%Y-%m-%d %H:%M:%S") if not pd.isna(timestamp) else ""
-        values = [stamp, item.get("client_ip") or "", item.get("attack_type") or "", item.get("severity") or "",
-                  str(item.get("recommendation") or "")[:800], str(item.get("raw_log") or "")[:350]]
+        values = [stamp, item.get("client_ip") or "", item.get("classification") or "", item.get("risk_score") or "",
+                  str(item.get("explanation") or "")[:500], str(item.get("correlation") or "")[:350],
+                  str(item.get("recommendation") or "")[:500], str(item.get("raw_log") or "")[:250]]
         rows.append([Paragraph(html.escape(str(value)).replace("\n", "<br/>"), cell_style) for value in values])
-    table = Table(rows, colWidths=[31*mm, 25*mm, 31*mm, 20*mm, 86*mm, 67*mm], repeatRows=1, hAlign="LEFT")
+    table = Table(rows, colWidths=[24*mm, 19*mm, 24*mm, 13*mm, 48*mm, 36*mm, 40*mm, 30*mm], repeatRows=1, hAlign="LEFT")
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0a246a")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),

@@ -15,11 +15,29 @@ def ensure_tables(conn) -> None:
                 id BIGSERIAL PRIMARY KEY,
                 timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 client_ip VARCHAR(45), raw_log TEXT NOT NULL,
-                attack_type VARCHAR(255) NOT NULL,
-                severity VARCHAR(16) NOT NULL CHECK (severity IN ('Critical','High','Medium','Low')),
+                classification VARCHAR(255) NOT NULL,
+                risk_score VARCHAR(16) NOT NULL CHECK (risk_score IN ('Critical','High','Medium','Low')),
+                explanation TEXT NOT NULL DEFAULT '',
+                correlation TEXT NOT NULL DEFAULT '',
                 recommendation TEXT NOT NULL
             )
         """)
+        # Migrate an older deployment (attack_type/severity) onto the new AI-pipeline schema.
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='security_events' AND column_name='attack_type') THEN
+                    ALTER TABLE security_events RENAME COLUMN attack_type TO classification;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name='security_events' AND column_name='severity') THEN
+                    ALTER TABLE security_events RENAME COLUMN severity TO risk_score;
+                END IF;
+            END $$;
+        """)
+        cursor.execute("ALTER TABLE security_events ADD COLUMN IF NOT EXISTS explanation TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE security_events ADD COLUMN IF NOT EXISTS correlation TEXT NOT NULL DEFAULT ''")
         cursor.execute("CREATE INDEX IF NOT EXISTS security_events_timestamp_idx ON security_events (timestamp DESC)")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS analyzer_control (
@@ -135,7 +153,7 @@ def fetch_events(start: datetime, end: datetime) -> pd.DataFrame:
     with db_connect() as conn, conn.cursor() as cursor:
         ensure_tables(conn)
         cursor.execute(
-            "SELECT id, timestamp, client_ip, raw_log, attack_type, severity, recommendation "
+            "SELECT id, timestamp, client_ip, raw_log, classification, risk_score, explanation, correlation, recommendation "
             "FROM security_events WHERE timestamp >= %s AND timestamp <= %s ORDER BY timestamp DESC LIMIT 10000",
             (start, end),
         )
@@ -208,4 +226,3 @@ def fetch_blocking_ips(start: datetime, end: datetime, limit: int = 100, ip_sear
         params.append(max(1, min(limit, 1000)))
         cursor.execute(query, params)
         return cursor.fetchall()
-

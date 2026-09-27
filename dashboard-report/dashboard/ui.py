@@ -17,7 +17,7 @@ from .pdf_report import make_pdf_report
 from .theme import render_theme
 
 PAGES = ["Overview", "Monitoring", "Events", "Configuration", "Reports"]
-SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
+RISK_ORDER = ["Critical", "High", "Medium", "Low", "Info"]
 CHART_COLORS = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#38bdf8", "#a78bfa"]
 
 
@@ -84,20 +84,20 @@ def _filtered_events(events: pd.DataFrame, page: str) -> pd.DataFrame:
     with st.container(border=True):
         st.markdown("<div class='section-eyebrow'>INCIDENT FILTERS</div>", unsafe_allow_html=True)
         filter_cols = st.columns([1, 1.3, 1.1])
-        present_severities = [value for value in SEVERITY_ORDER if value in set(events["severity"].dropna())]
-        selected_severities = filter_cols[0].multiselect("Severity", present_severities, default=present_severities, key=f"{page}-severity-filter")
-        attacks = sorted(str(value) for value in events["attack_type"].dropna().unique())
-        selected_attacks = filter_cols[1].multiselect("Attack type", attacks, default=attacks, key=f"{page}-attack-filter")
+        present_risk_scores = [value for value in RISK_ORDER if value in set(events["risk_score"].dropna())]
+        selected_risk_scores = filter_cols[0].multiselect("Risk score", present_risk_scores, default=present_risk_scores, key=f"{page}-risk-filter")
+        classifications = sorted(str(value) for value in events["classification"].dropna().unique())
+        selected_classifications = filter_cols[1].multiselect("Classification", classifications, default=classifications, key=f"{page}-classification-filter")
         ip_search = filter_cols[2].text_input("Source IP", placeholder="Search IP address…", key=f"{page}-source-ip-filter").strip().lower()
-    filtered = events[events["severity"].isin(selected_severities) & events["attack_type"].astype(str).isin(selected_attacks)].copy()
+    filtered = events[events["risk_score"].isin(selected_risk_scores) & events["classification"].astype(str).isin(selected_classifications)].copy()
     if ip_search:
         filtered = filtered[filtered["client_ip"].fillna("").astype(str).str.lower().str.contains(ip_search, regex=False)]
     return filtered
 
 
 def _metric_row(events: pd.DataFrame, waf: dict) -> tuple[int, int]:
-    severity = events["severity"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
-    critical_high = int(severity.isin(["critical", "high"]).sum())
+    risk_score = events["risk_score"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
+    critical_high = int(risk_score.isin(["critical", "high"]).sum())
     cards = st.columns(4)
     cards[0].metric("Security events", f"{len(events):,}")
     cards[1].metric("Critical / High", f"{critical_high:,}")
@@ -108,12 +108,12 @@ def _metric_row(events: pd.DataFrame, waf: dict) -> tuple[int, int]:
     return critical_high, len(events)
 
 
-def _render_attack_donut(events: pd.DataFrame) -> None:
+def _render_classification_donut(events: pd.DataFrame) -> None:
     if events.empty:
         st.info("No analyzed security incidents in this time range.")
         return
-    counts = events["attack_type"].fillna("Unknown").value_counts().rename_axis("Attack type").reset_index(name="Incidents")
-    figure = px.pie(counts, names="Attack type", values="Incidents", hole=.62,
+    counts = events["classification"].fillna("Unknown").value_counts().rename_axis("Classification").reset_index(name="Incidents")
+    figure = px.pie(counts, names="Classification", values="Incidents", hole=.62,
                     color_discrete_sequence=CHART_COLORS)
     figure.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                          margin=dict(l=8, r=8, t=8, b=8), legend=dict(orientation="h", y=-.08),
@@ -156,13 +156,13 @@ def _render_ip_matrix(start: datetime, end: datetime, ip_search: str = "") -> No
 
 def _render_overview(events: pd.DataFrame, waf: dict, start: datetime, end: datetime) -> None:
     st.markdown("### Metrics overview")
-    st.caption("Traffic cards use independently observed access.log data. Charts and incident lists reflect the selected severity, attack type and source IP filters.")
+    st.caption("Traffic cards use independently observed access.log data. Charts and incident lists reflect the selected risk score, classification and source IP filters.")
     _metric_row(events, waf)
     left, right = st.columns(2)
     with left:
         with st.container(border=True):
-            st.markdown("### Attack distribution")
-            _render_attack_donut(events)
+            st.markdown("### Classification distribution")
+            _render_classification_donut(events)
     with right:
         with st.container(border=True):
             st.markdown("### Incident trend")
@@ -216,18 +216,49 @@ def _render_monitoring(analyzer: dict) -> None:
 
 
 def _render_incident_inspector(event: pd.Series) -> None:
-    st.markdown(f"### AI incident inspector · {event.get('attack_type', 'Security incident')}")
-    st.markdown(f"**Severity:** <span class='severity-{str(event.get('severity', 'info')).lower()}'>{html.escape(str(event.get('severity') or 'Info'))}</span>　·　**Source IP:** `{html.escape(str(event.get('client_ip') or 'Unknown'))}`", unsafe_allow_html=True)
-    raw_col, recommendation_col = st.columns([1, 1.2])
-    with raw_col:
+    st.markdown(f"### AI incident inspector · {event.get('classification', 'Security incident')}")
+    st.markdown(
+        f"**Risk score:** <span class='severity-{str(event.get('risk_score', 'info')).lower()}'>"
+        f"{html.escape(str(event.get('risk_score') or 'Info'))}</span>　·　"
+        f"**Source IP:** `{html.escape(str(event.get('client_ip') or 'Unknown'))}`",
+        unsafe_allow_html=True,
+    )
+    st.caption("AI hỗ trợ phân tích sự kiện bảo mật, không thay thế vai trò chặn của WAF.")
+
+    pipeline_cols = st.columns([1, 1, 1, 1])
+    pipeline_cols[0].markdown("**Security event**")
+    pipeline_cols[1].markdown("**Collector**")
+    pipeline_cols[2].markdown("**Analyzer**")
+    pipeline_cols[3].markdown("**Ollama/LLM**")
+
+    classification_col, risk_col = st.columns(2)
+    with classification_col:
         with st.container(border=True):
-            st.markdown("#### Raw log payload")
-            st.code(str(event.get("raw_log") or "No raw log payload stored."), language=None)
-    with recommendation_col:
+            st.markdown("#### Classification · Phân loại sự kiện bảo mật")
+            st.markdown(html.escape(str(event.get("classification") or "Chưa phân loại.")))
+    with risk_col:
         with st.container(border=True):
-            st.markdown("#### Báo cáo đề xuất khắc phục từ AI")
-            recommendation = str(event.get("recommendation") or "Chưa có khuyến nghị được lưu.")
-            st.markdown(recommendation)
+            st.markdown("#### Risk scoring · Đánh giá mức độ rủi ro")
+            risk_value = str(event.get("risk_score") or "Info")
+            st.markdown(f"<span class='severity-{risk_value.lower()}' style='font-size:1.1rem'>{html.escape(risk_value)}</span>", unsafe_allow_html=True)
+
+    explanation_col, correlation_col = st.columns(2)
+    with explanation_col:
+        with st.container(border=True):
+            st.markdown("#### Explanation · Giải thích nguyên nhân và bối cảnh")
+            st.markdown(str(event.get("explanation") or "Chưa có giải thích được lưu."))
+    with correlation_col:
+        with st.container(border=True):
+            st.markdown("#### Correlation · Tương quan tấn công đơn/đa giai đoạn")
+            st.markdown(str(event.get("correlation") or "Chưa có phân tích tương quan."))
+
+    with st.container(border=True):
+        st.markdown("#### Recommendation · Đề xuất hành động xử lý")
+        st.markdown(str(event.get("recommendation") or "Chưa có khuyến nghị được lưu."))
+
+    with st.container(border=True):
+        st.markdown("#### Raw log payload")
+        st.code(str(event.get("raw_log") or "No raw log payload stored."), language=None)
 
 
 def _render_events(events: pd.DataFrame) -> None:
@@ -237,19 +268,19 @@ def _render_events(events: pd.DataFrame) -> None:
         return
     display = events.copy().reset_index(drop=True)
     display["timestamp"] = pd.to_datetime(display["timestamp"], utc=True, errors="coerce").dt.tz_convert(APP_TZ)
-    visible_columns = ["timestamp", "client_ip", "attack_type", "severity"]
-    severity_colors = {"critical": "#f87171", "high": "#fb923c", "medium": "#fbbf24", "low": "#34d399", "info": "#38bdf8"}
+    visible_columns = ["timestamp", "client_ip", "classification", "risk_score"]
+    risk_colors = {"critical": "#f87171", "high": "#fb923c", "medium": "#fbbf24", "low": "#34d399", "info": "#38bdf8"}
     styled_events = display[visible_columns].style.map(
-        lambda value: f"color: {severity_colors.get(str(value).lower(), '#e5eaf2')}; font-weight: 700",
-        subset=["severity"],
+        lambda value: f"color: {risk_colors.get(str(value).lower(), '#e5eaf2')}; font-weight: 700",
+        subset=["risk_score"],
     )
     selection = st.dataframe(
         styled_events, use_container_width=True, hide_index=True, height=390,
         on_select="rerun", selection_mode="single-row", key="security-event-matrix",
         column_config={"timestamp": st.column_config.DatetimeColumn("Timestamp (UTC+07)", format="YYYY-MM-DD HH:mm:ss"),
                        "client_ip": st.column_config.TextColumn("Source IP"),
-                       "attack_type": st.column_config.TextColumn("Attack type"),
-                       "severity": st.column_config.TextColumn("Severity")},
+                       "classification": st.column_config.TextColumn("Classification"),
+                       "risk_score": st.column_config.TextColumn("Risk score")},
     )
     selected_rows = selection.selection.rows
     if selected_rows and 0 <= selected_rows[0] < len(display):
@@ -293,14 +324,14 @@ def _render_configuration(analyzer: dict) -> None:
 def _render_reports(events: pd.DataFrame, start: datetime, end: datetime, from_date, to_date) -> None:
     st.markdown("### Audit export")
     cards = st.columns(3)
-    counts = events["severity"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
+    counts = events["risk_score"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
     cards[0].metric("Filtered incidents", f"{len(events):,}")
     cards[1].metric("Critical", f"{int((counts == 'critical').sum()):,}")
     cards[2].metric("High", f"{int((counts == 'high').sum()):,}")
     if events.empty:
         st.info("No filtered incidents to export.")
         return
-    export_columns = ["timestamp", "client_ip", "attack_type", "severity", "recommendation", "raw_log"]
+    export_columns = ["timestamp", "client_ip", "classification", "risk_score", "explanation", "correlation", "recommendation", "raw_log"]
     csv_data = events[export_columns].to_csv(index=False).encode("utf-8-sig")
     pdf_data = make_pdf_report(events, start, end)
     left, right = st.columns(2)

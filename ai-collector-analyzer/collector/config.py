@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("ai_collector")
-SEVERITIES = {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low"}
+RISK_LEVELS = {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low"}
 SECURITY_STATUSES = {403, 406, 429}
 
 def positive_int_env(name: str, default: int, minimum: int = 1) -> int:
