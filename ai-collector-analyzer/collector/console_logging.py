@@ -9,7 +9,7 @@ class PostgresConsoleHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            save_console_log(record.levelname, record.name, self.format(record))
+            save_console_log(record.levelname, record.name, record.getMessage())
         except Exception:
             # Logging must never recurse or terminate the analyzer when persistence fails.
             self.handleError(record)

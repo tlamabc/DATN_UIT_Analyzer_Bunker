@@ -4,11 +4,9 @@ import html
 import pandas as pd
 import streamlit as st
 from .config import APP_TZ, safe_int_env
-from .database import (analyzer_status, fetch_console_logs, fetch_events, fetch_token_usage,
-                       set_analyzer, set_language)
+from .database import analyzer_status, fetch_console_logs, fetch_events, set_analyzer, set_language
 from .pdf_report import make_pdf_report
 from .theme import render_theme
-from .vmaas_client import fetch_vmaas_models
 
 def run_app() -> None:
     render_theme()
@@ -42,7 +40,6 @@ def run_app() -> None:
     try:
         events = fetch_events(range_start, range_end)
         analyzer = analyzer_status()
-        usage_range = fetch_token_usage(range_start, range_end)
     except Exception as exc:
         st.error("Could not load dashboard data. Check PostgreSQL connection and schema.")
         st.exception(exc)
@@ -115,37 +112,6 @@ def run_app() -> None:
 
     live_console()
 
-    with st.container(border=True):
-        st.subheader("vMaaS service & token usage")
-        vmaas = fetch_vmaas_models()
-        usage_cols = st.columns(5)
-        usage_cols[0].metric("vMaaS API", vmaas["status"])
-        usage_cols[1].metric("Selected model", vmaas.get("model") or "Not configured")
-        usage_cols[2].metric("Prompt tokens · range", f"{usage_range[0]:,}")
-        usage_cols[3].metric("Completion tokens · range", f"{usage_range[1]:,}")
-        usage_cols[4].metric("Total tokens · range", f"{usage_range[2]:,}")
-        st.caption(f"Endpoint: {vmaas.get('endpoint', '—')} · Available models: {len(vmaas.get('models', []))} · "
-                   f"Model configured: {'yes' if vmaas.get('selected_found') else 'not confirmed'} · "
-                   f"Per-response output cap: {safe_int_env('VMAAS_MAX_TOKENS', 700)} tokens")
-        if vmaas.get("facts"):
-            st.caption("Selected model info: " + " · ".join(vmaas["facts"]))
-        if vmaas.get("models"):
-            with st.expander("Available vMaaS models"):
-                st.code("\n".join(vmaas["models"]), language=None)
-        if vmaas.get("detail"):
-            st.warning(vmaas["detail"])
-        daily_budget = safe_int_env("VMAAS_DAILY_TOKEN_BUDGET", 0)
-        budget_cols = st.columns(3)
-        budget_cols[0].metric("Tokens used today", f"{usage_range[4]:,}")
-        if daily_budget:
-            budget_cols[1].metric("Configured daily budget", f"{daily_budget:,}")
-            budget_cols[2].metric("Estimated budget remaining", f"{max(0, daily_budget - usage_range[4]):,}")
-            st.caption("Remaining is calculated from VMAAS_DAILY_TOKEN_BUDGET in .env; it is a configured budget, not a live vendor quota.")
-        else:
-            budget_cols[1].metric("Account quota remaining", "Not exposed")
-            budget_cols[2].metric("Daily budget remaining", "Configure budget")
-            st.caption("The documented vMaaS models endpoint reports available models, not account quota remaining. Today's token use is measured from API usage responses.")
-
     total = len(events)
     critical = int((events["severity"].str.lower() == "critical").sum()) if total else 0
     high = int((events["severity"].str.lower() == "high").sum()) if total else 0
@@ -188,7 +154,7 @@ def run_app() -> None:
             },
         )
 
-    report_pdf = make_pdf_report(visible, range_start, range_end, usage_range)
+    report_pdf = make_pdf_report(visible, range_start, range_end)
     st.download_button(
         "📄 Download PDF Report", data=report_pdf,
         file_name=f"soc-security-report-{start_date:%Y%m%d}-{end_date:%Y%m%d}.pdf",

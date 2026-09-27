@@ -1,4 +1,4 @@
-"""Clean Windows 10-inspired report theme."""
+"""Dark observability theme for the security report dashboard."""
 import streamlit as st
 
 
@@ -7,31 +7,34 @@ def render_theme() -> None:
     st.markdown(
         """
         <style>
-        :root { --ink:#172b4d; --muted:#62748a; --blue:#1769aa; --line:#dce3eb; --surface:#fff; }
-        [data-testid="stAppViewContainer"] { background:#f3f6fa; color:var(--ink); }
+        :root { --ink:#e6edf5; --muted:#94a3b8; --blue:#28a9e0; --line:#26384b; --surface:#111e2c; }
+        [data-testid="stAppViewContainer"] { background:#0b1420; color:var(--ink); }
         [data-testid="stHeader"] { display:none; height:0; }
         [data-testid="stToolbar"] { display:none; }
-        [data-testid="stMainBlockContainer"] { max-width:1440px; padding:1.4rem 2rem 3rem; }
-        [data-testid="stMainBlockContainer"] > div { gap:1rem; }
-        h1,h2,h3 { color:var(--ink) !important; letter-spacing:-.025em; }
+        [data-testid="stMainBlockContainer"] { max-width:1600px; padding:1.2rem 1.8rem 3rem; }
+        [data-testid="stMainBlockContainer"] > div { gap:.85rem; }
+        h1,h2,h3 { color:var(--ink) !important; letter-spacing:-.02em; }
         h1 { font-size:2rem !important; }
-        h2 { font-size:1.35rem !important; }
-        [data-testid="stMetric"] { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px 18px; box-shadow:0 1px 2px #172b4d0a; }
+        h2 { font-size:1.2rem !important; }
+        p, label, [data-testid="stCaptionContainer"] { color:var(--muted); }
+        [data-testid="stMetric"] { background:#142333; border:1px solid var(--line); border-radius:5px; padding:13px 16px; box-shadow:none; }
         [data-testid="stMetricLabel"] { color:var(--muted); }
-        [data-testid="stMetricValue"] { color:var(--ink); }
-        [data-testid="stVerticalBlockBorderWrapper"] { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px #172b4d0a; }
-        .stButton > button, .stDownloadButton > button { border-radius:7px; min-height:2.5rem; font-weight:600; }
-        .stButton > button[kind="primary"] { background:#1769aa; border-color:#1769aa; }
-        [data-testid="stDataFrame"] { border:1px solid var(--line); border-radius:8px; }
-        [data-testid="stProgressBar"] > div > div { background:#1769aa; }
-        .report-heading { border-bottom:1px solid var(--line); padding:0 0 1rem; margin-bottom:1.2rem; }
-        .report-kicker { color:#1769aa; font-size:.76rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
-        .report-title { color:#172b4d; font-size:1.7rem; line-height:1.25; font-weight:750; margin:.35rem 0; }
-        .report-subtitle { color:#62748a; font-size:.96rem; }
-        .report-meta { color:#62748a; font-size:.85rem; margin-top:.8rem; }
-        .console { background:#111827; color:#d1d5db; border-radius:9px; padding:12px 14px; font:12px/1.55 Consolas,Monaco,monospace; max-height:330px; overflow-y:auto; }
-        .console-line { border-bottom:1px solid #ffffff12; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
-        .console-time { color:#94a3b8; } .console-error { color:#fca5a5; } .console-warning { color:#fcd34d; } .console-info { color:#bfdbfe; }
+        [data-testid="stMetricValue"] { color:#f1f5f9; }
+        [data-testid="stVerticalBlockBorderWrapper"] { background:var(--surface); border:1px solid var(--line); border-radius:6px; box-shadow:none; }
+        .stButton > button, .stDownloadButton > button { background:#182a3b; color:#e6edf5; border:1px solid #30465c; border-radius:4px; min-height:2.35rem; font-weight:600; }
+        .stButton > button:hover, .stDownloadButton > button:hover { background:#203b52; border-color:#28a9e0; color:white; }
+        .stButton > button[kind="primary"] { background:#0879ad; border-color:#1294c9; }
+        [data-testid="stDataFrame"] { border:1px solid var(--line); border-radius:5px; }
+        [data-testid="stProgressBar"] > div > div { background:#21a1d2; }
+        input, textarea, [data-baseweb="select"] > div { background:#0d1926 !important; color:var(--ink) !important; border-color:#30465c !important; border-radius:4px !important; }
+        .report-heading { border-bottom:1px solid var(--line); padding:0 0 .85rem; margin-bottom:.5rem; }
+        .report-kicker { color:#39b5e5; font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+        .report-title { color:#f1f5f9; font-size:1.55rem; line-height:1.25; font-weight:700; margin:.25rem 0; }
+        .report-subtitle { color:#bac7d5; font-size:.9rem; }
+        .report-meta { color:#8294a8; font-size:.8rem; margin-top:.55rem; }
+        .console { background:#080f17; color:#cbd5e1; border:1px solid #26384b; border-radius:4px; padding:12px 14px; font:12px/1.6 Consolas,Monaco,monospace; height:300px; overflow-y:auto; }
+        .console-line { border-bottom:1px solid #ffffff0d; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
+        .console-time { color:#718096; } .console-error { color:#ff7272; } .console-warning { color:#f3c969; } .console-info { color:#58b8e8; }
         .report-footer { color:#718096; border-top:1px solid var(--line); margin-top:2rem; padding-top:.8rem; font-size:.8rem; }
         </style>
         """,

@@ -10,13 +10,13 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from .config import APP_TZ
 
-def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime, usage: tuple[int, ...]) -> bytes:
+def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime) -> bytes:
     buffer = BytesIO()
     document = SimpleDocTemplate(buffer, pagesize=landscape(A4), leftMargin=12*mm, rightMargin=12*mm,
                                  topMargin=13*mm, bottomMargin=14*mm, title="SOC Security Report")
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("XPTitle", parent=styles["Title"], textColor=colors.HexColor("#0a246a"), fontSize=18)
-    cell_style = ParagraphStyle("XPCell", parent=styles["BodyText"], fontSize=7, leading=9)
+    title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], textColor=colors.HexColor("#0a246a"), fontSize=18)
+    cell_style = ParagraphStyle("ReportCell", parent=styles["BodyText"], fontSize=7, leading=9)
     story = [
         Paragraph("SOC Security Assessment Report", title_style),
         Paragraph("TÌM HIỂU VÀ XÂY DỰNG HỆ THỐNG WEB APPLICATION FIREWALL OPEN SOURCE TÍCH HỢP AI PHÂN TÍCH TẤN CÔNG", styles["Heading3"]),
@@ -30,7 +30,7 @@ def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime, usage:
     total = len(events)
     critical = int((events["severity"].str.lower() == "critical").sum()) if total else 0
     high = int((events["severity"].str.lower() == "high").sum()) if total else 0
-    story.append(Paragraph(f"Events: {total} · Critical: {critical} · High: {high} · vMaaS tokens: {usage[2]:,}", styles["Heading3"]))
+    story.append(Paragraph(f"Events: {total} · Critical: {critical} · High: {high}", styles["Heading3"]))
     headers = ["Timestamp", "Client IP", "Attack", "Severity", "Recommendation", "Raw log"]
     rows = [headers]
     for _, item in events.head(300).iterrows():
