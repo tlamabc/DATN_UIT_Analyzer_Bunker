@@ -31,6 +31,7 @@ def scan_file(path: Path, offset: int, cutoff: datetime, event_budget: int, line
                     offset = current
                     continue
                 try:
+                    LOGGER.info("Sending security event from %s to vMaaS", path.name)
                     result, usage = analyze_log(raw, data, response_language)
                     save_event(raw, data, result, usage)
                     LOGGER.info("Analyzed security event from %s", path.name)

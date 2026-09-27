@@ -1,1 +1,1 @@
-"""Windows XP styled SOC security dashboard."""
+"""SOC security assessment report dashboard."""

@@ -58,7 +58,7 @@ def make_pdf_report(events: pd.DataFrame, start: datetime, end: datetime, usage:
         canvas.saveState()
         canvas.setFillColor(colors.HexColor("#0a246a"))
         canvas.setFont("Helvetica", 8)
-        canvas.drawString(12*mm, 7*mm, "SOC Security Dashboard · Windows XP Edition")
+        canvas.drawString(12*mm, 7*mm, "SOC Security Assessment Report")
         canvas.drawRightString(landscape(A4)[0] - 12*mm, 7*mm, f"Page {doc.page}")
         canvas.restoreState()
 

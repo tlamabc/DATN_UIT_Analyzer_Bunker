@@ -6,6 +6,7 @@ import time
 from datetime import date, datetime, time as datetime_time
 from pathlib import Path
 from .config import LOGGER, analyzer_timezone, positive_int_env
+from .console_logging import PostgresConsoleHandler
 from .database import (clear_reset_request, db_connect, get_control, initialize_database,
                        load_offsets, update_progress)
 from .scanner import scan_file
@@ -18,6 +19,9 @@ def main() -> None:
     poll_seconds = positive_int_env("ANALYZER_CONTROL_POLL_SECONDS", 5)
     tz = analyzer_timezone()
     initialize_database()
+    console_handler = PostgresConsoleHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    LOGGER.addHandler(console_handler)
     offsets = load_offsets()
     next_scan_at = 0.0
     active_scan_date: date | None = None

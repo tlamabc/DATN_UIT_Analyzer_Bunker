@@ -1,28 +1,33 @@
 """Streamlit page composition for analyzer controls and security reporting."""
 from datetime import datetime, time
+import html
 import pandas as pd
 import streamlit as st
 from .config import APP_TZ, safe_int_env
-from .database import (analyzer_status, fetch_events, fetch_token_usage, set_analyzer, set_language)
+from .database import (analyzer_status, fetch_console_logs, fetch_events, fetch_token_usage,
+                       set_analyzer, set_language)
 from .pdf_report import make_pdf_report
 from .theme import render_theme
 from .vmaas_client import fetch_vmaas_models
 
 def run_app() -> None:
     render_theme()
-    with st.container(border=True):
-        st.subheader("Thông tin Đồ án Tốt nghiệp")
-        st.markdown("# TÌM HIỂU VÀ XÂY DỰNG HỆ THỐNG WEB APPLICATION FIREWALL OPEN SOURCE TÍCH HỢP AI PHÂN TÍCH TẤN CÔNG")
-        st.markdown("*AI-Enhanced Open Source WAF Security Assessment Lab*")
-        st.markdown("**Đặng Thanh Lâm** (ID: 25410078)  ·  **Trương Tấn Đạt** (ID: 25410031)")
-
-    st.title("🛡️ SOC Security Dashboard")
+    st.markdown("""
+    <div class="report-heading">
+      <div class="report-kicker">Graduation project · Security assessment</div>
+      <div class="report-title">SOC Security Assessment Report</div>
+      <div class="report-subtitle">Tìm hiểu và xây dựng hệ thống Web Application Firewall open source tích hợp AI phân tích tấn công</div>
+      <div class="report-meta"><i>AI-Enhanced Open Source WAF Security Assessment Lab</i><br>
+      Đặng Thanh Lâm (ID: 25410078) &nbsp;·&nbsp; Trương Tấn Đạt (ID: 25410031)</div>
+    </div>
+    """, unsafe_allow_html=True)
     now = datetime.now(APP_TZ)
     today = now.date()
-    st.caption("Windows XP Security Center · Date/time range is interpreted in Asia/Ho_Chi_Minh (UTC+07:00)")
 
     with st.container(border=True):
-        st.subheader("Select analyst time range")
+        date_title, date_tz = st.columns([3, 2])
+        date_title.subheader("Report period")
+        date_tz.caption("All times shown in Asia/Ho_Chi_Minh (UTC+07:00)")
         date_cols = st.columns(4)
         start_date = date_cols[0].date_input("From date", value=today, key="range_start_date")
         start_time = date_cols[1].time_input("From time", value=time.min, key="range_start_time")
@@ -44,7 +49,7 @@ def run_app() -> None:
         st.stop()
 
     with st.container(border=True):
-        st.subheader("Analyzer Control Panel")
+        st.subheader("AI analysis")
         languages = ["Vietnamese", "English"]
         language_labels = {"Vietnamese": "Tiếng Việt", "English": "English"}
         selected_language = st.selectbox("AI recommendation language", languages,
@@ -88,8 +93,30 @@ def run_app() -> None:
         if analyzer["error"]:
             st.warning(f"Last analyzer issue: {analyzer['error']}")
 
+    @st.fragment(run_every="3s")
+    def live_console() -> None:
+        with st.container(border=True):
+            console_title, console_state = st.columns([3, 1])
+            console_title.subheader("Analyzer console")
+            console_state.caption("● Live · refreshes every 3 seconds" if analyzer["enabled"] else "Analyzer stopped")
+            records = fetch_console_logs(100)
+            if not records:
+                st.caption("No analyzer output yet. Start AI analysis to see collector activity here.")
+                return
+            lines = []
+            for created_at, level, logger_name, message in records:
+                stamp = created_at.astimezone(APP_TZ).strftime("%H:%M:%S") if created_at else "--:--:--"
+                lines.append(
+                    f'<div class="console-line"><span class="console-time">[{stamp}]</span> '
+                    f'<span class="console-{str(level).lower()}">{html.escape(str(level))}</span> '
+                    f'<span>{html.escape(str(logger_name))}</span> · {html.escape(str(message))}</div>'
+                )
+            st.markdown('<div class="console">' + "".join(lines) + "</div>", unsafe_allow_html=True)
+
+    live_console()
+
     with st.container(border=True):
-        st.subheader("vMaaS Service & Token Usage")
+        st.subheader("vMaaS service & token usage")
         vmaas = fetch_vmaas_models()
         usage_cols = st.columns(5)
         usage_cols[0].metric("vMaaS API", vmaas["status"])
@@ -122,7 +149,7 @@ def run_app() -> None:
     total = len(events)
     critical = int((events["severity"].str.lower() == "critical").sum()) if total else 0
     high = int((events["severity"].str.lower() == "high").sum()) if total else 0
-    st.subheader("Security Overview · selected range")
+    st.subheader("Security overview")
     metric_cols = st.columns(4)
     metric_cols[0].metric("Security events", f"{total:,}")
     metric_cols[1].metric("Critical", f"{critical:,}")
@@ -140,7 +167,7 @@ def run_app() -> None:
             timeline = timeline.dropna(subset=["timestamp"]).set_index("timestamp").resample("1h").size()
             st.line_chart(timeline.rename("Events"))
 
-    st.subheader("Security Event Details")
+    st.subheader("Analyzed security events")
     severities = ["Critical", "High", "Medium", "Low"]
     selected_severities = st.multiselect("Severity filter", severities, default=severities)
     visible = events[events["severity"].isin(selected_severities)].copy()
@@ -170,4 +197,4 @@ def run_app() -> None:
     if len(visible) > 300:
         st.caption("PDF includes the newest 300 visible events; dashboard table shows the selected range (up to 10,000 rows).")
 
-    st.markdown("<div class='xp-footer'>Start · SOC Security Dashboard · vMaaS connected status and usage</div>", unsafe_allow_html=True)
+    st.markdown("<div class='report-footer'>SOC Security Assessment Report · Generated from BunkerWeb events and vMaaS analysis</div>", unsafe_allow_html=True)

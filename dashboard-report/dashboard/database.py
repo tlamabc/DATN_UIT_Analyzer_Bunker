@@ -54,6 +54,16 @@ def ensure_tables(conn) -> None:
                 total_tokens INTEGER NOT NULL DEFAULT 0
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS analyzer_console_logs (
+                id BIGSERIAL PRIMARY KEY,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                level VARCHAR(16) NOT NULL,
+                logger VARCHAR(128) NOT NULL,
+                message TEXT NOT NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS analyzer_console_logs_created_at_idx ON analyzer_console_logs (created_at DESC)")
 
 def analyzer_status() -> dict:
     with db_connect() as conn:
@@ -122,4 +132,14 @@ def fetch_token_usage(start: datetime, end: datetime) -> tuple[int, int, int, in
         cursor.execute("SELECT COALESCE(SUM(total_tokens),0) FROM vmaas_usage WHERE created_at >= %s", (today_start,))
         today_tokens = int(cursor.fetchone()[0])
     return (*selected[:3], selected[3], today_tokens)
+
+
+def fetch_console_logs(limit: int = 100):
+    with db_connect() as conn, conn.cursor() as cursor:
+        ensure_tables(conn)
+        cursor.execute(
+            "SELECT created_at, level, logger, message FROM analyzer_console_logs "
+            "ORDER BY id DESC LIMIT %s", (max(1, min(limit, 500)),),
+        )
+        return list(reversed(cursor.fetchall()))
 

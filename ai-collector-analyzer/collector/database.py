@@ -64,6 +64,24 @@ def initialize_database() -> None:
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS vmaas_usage_created_at_idx ON vmaas_usage (created_at DESC)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS analyzer_console_logs (
+                id BIGSERIAL PRIMARY KEY,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                level VARCHAR(16) NOT NULL,
+                logger VARCHAR(128) NOT NULL,
+                message TEXT NOT NULL
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS analyzer_console_logs_created_at_idx ON analyzer_console_logs (created_at DESC)")
+
+
+def save_console_log(level: str, logger_name: str, message: str) -> None:
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO analyzer_console_logs (level, logger, message) VALUES (%s, %s, %s)",
+            (level[:16], logger_name[:128], message[:4000]),
+        )
 
 def save_event(raw: str, data: dict[str, Any], analysis: dict[str, str], usage: dict[str, int] | None) -> None:
     client_ip = data.get("client_ip") or data.get("remote_addr") or data.get("ip")

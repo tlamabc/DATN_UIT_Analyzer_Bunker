@@ -1,6 +1,39 @@
-"""Windows XP-inspired dashboard theme and project heading."""
+"""Clean Windows 10-inspired report theme."""
 import streamlit as st
 
+
 def render_theme() -> None:
-    st.set_page_config(page_title="SOC Security Dashboard", page_icon="🛡️", layout="wide")
-    st.markdown("""<style>:root { --xp-blue:#0a246a; --xp-blue2:#3a6ea5; --xp-face:#ece9d8; --xp-teal:#008080; }[data-testid="stAppViewContainer"] { background:var(--xp-teal); }[data-testid="stMainBlockContainer"] { max-width:1480px; padding-top:1.1rem; padding-bottom:2rem; }[data-testid="stMainBlockContainer"] > div { background:var(--xp-face); border:2px outset #fff; padding:1.15rem 1.35rem; }[data-testid="stSidebar"] { background:var(--xp-face); border-right:2px outset #fff; }.xp-titlebar { background:linear-gradient(90deg,#0a246a,#3a6ea5 65%,#a6caf0); color:#fff; padding:9px 12px; border:2px outset #d6d2c2; font-weight:700; font-size:1.05rem; text-shadow:1px 1px #10234b; margin-bottom:1rem; }.xp-titlebar small { display:block; font-weight:400; font-size:.78rem; margin-top:3px; }h1,h2,h3 { color:#102b62 !important; }[data-testid="stMetric"] { background:#f6f4eb; border:2px outset #fff; padding:10px 12px; }[data-testid="stMetricLabel"] { color:#20365f; }.stButton > button, .stDownloadButton > button { color:#111; background:linear-gradient(#fff,#e4e2d8); border:2px outset #fff; border-radius:2px; box-shadow:1px 1px #777; font-weight:600; }.stButton > button:hover, .stDownloadButton > button:hover { color:#071c55; border-color:#7f9db9; background:linear-gradient(#fff,#dce8f8); }[data-testid="stDataFrame"] { border:2px inset #aaa; }[data-testid="stAlert"] { border:1px solid #7f9db9; border-radius:0; }div[data-baseweb="select"] > div, input, textarea { border-radius:2px !important; }.xp-status { background:#f6f4eb; border:2px inset #fff; padding:8px 10px; color:#172b55; }.xp-footer { background:linear-gradient(#3a6ea5,#0a246a); color:#fff; padding:6px 10px; margin-top:18px; font-size:.8rem; }</style><div class="xp-titlebar">🛡 SOC Security Dashboard <small>Windows XP Security Center · BunkerWeb + vMaaS</small></div>""", unsafe_allow_html=True)
+    st.set_page_config(page_title="SOC Security Assessment Report", page_icon="🛡️", layout="wide")
+    st.markdown(
+        """
+        <style>
+        :root { --ink:#172b4d; --muted:#62748a; --blue:#1769aa; --line:#dce3eb; --surface:#fff; }
+        [data-testid="stAppViewContainer"] { background:#f3f6fa; color:var(--ink); }
+        [data-testid="stHeader"] { display:none; height:0; }
+        [data-testid="stToolbar"] { display:none; }
+        [data-testid="stMainBlockContainer"] { max-width:1440px; padding:1.4rem 2rem 3rem; }
+        [data-testid="stMainBlockContainer"] > div { gap:1rem; }
+        h1,h2,h3 { color:var(--ink) !important; letter-spacing:-.025em; }
+        h1 { font-size:2rem !important; }
+        h2 { font-size:1.35rem !important; }
+        [data-testid="stMetric"] { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px 18px; box-shadow:0 1px 2px #172b4d0a; }
+        [data-testid="stMetricLabel"] { color:var(--muted); }
+        [data-testid="stMetricValue"] { color:var(--ink); }
+        [data-testid="stVerticalBlockBorderWrapper"] { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px #172b4d0a; }
+        .stButton > button, .stDownloadButton > button { border-radius:7px; min-height:2.5rem; font-weight:600; }
+        .stButton > button[kind="primary"] { background:#1769aa; border-color:#1769aa; }
+        [data-testid="stDataFrame"] { border:1px solid var(--line); border-radius:8px; }
+        [data-testid="stProgressBar"] > div > div { background:#1769aa; }
+        .report-heading { border-bottom:1px solid var(--line); padding:0 0 1rem; margin-bottom:1.2rem; }
+        .report-kicker { color:#1769aa; font-size:.76rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+        .report-title { color:#172b4d; font-size:1.7rem; line-height:1.25; font-weight:750; margin:.35rem 0; }
+        .report-subtitle { color:#62748a; font-size:.96rem; }
+        .report-meta { color:#62748a; font-size:.85rem; margin-top:.8rem; }
+        .console { background:#111827; color:#d1d5db; border-radius:9px; padding:12px 14px; font:12px/1.55 Consolas,Monaco,monospace; max-height:330px; overflow-y:auto; }
+        .console-line { border-bottom:1px solid #ffffff12; padding:3px 0; white-space:pre-wrap; word-break:break-word; }
+        .console-time { color:#94a3b8; } .console-error { color:#fca5a5; } .console-warning { color:#fcd34d; } .console-info { color:#bfdbfe; }
+        .report-footer { color:#718096; border-top:1px solid var(--line); margin-top:2rem; padding-top:.8rem; font-size:.8rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
