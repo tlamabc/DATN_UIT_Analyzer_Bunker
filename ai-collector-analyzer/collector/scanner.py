@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from .config import LOGGER
-from .database import save_event, save_offset
+from .database import save_event, save_offset, save_waf_observations
 from .log_parser import event_timestamp, is_security_event, parse_log
 from .vmaas import analyze_log
 
@@ -50,3 +50,39 @@ def scan_file(path: Path, offset: int, cutoff: datetime, event_budget: int, line
         return offset, analyzed, lines_read, f"Permission denied reading {path}"
     save_offset(str(path), offset)
     return offset, analyzed, lines_read, last_error
+
+
+def scan_waf_observations(path: Path, offset: int, generation: int,
+                         cutoff: datetime, line_budget: int) -> tuple[int, int, int]:
+    """Observe access requests independently from the AI event quota."""
+    if not path.name.startswith("access.log") or line_budget <= 0:
+        return offset, generation, 0
+    original_offset, original_generation = offset, generation
+    observations: list[tuple[int, datetime, str | None, bool]] = []
+    lines_read = 0
+    try:
+        if path.stat().st_size < offset:
+            offset = 0
+            generation += 1
+        with path.open("r", encoding="utf-8", errors="replace") as stream:
+            stream.seek(offset)
+            while line_budget > 0 and (line := stream.readline()):
+                line_start = offset
+                offset = stream.tell()
+                lines_read += 1
+                line_budget -= 1
+                raw = line.strip()
+                if not raw:
+                    continue
+                data = parse_log(raw)
+                timestamp = event_timestamp(data)
+                if timestamp is None or timestamp < cutoff:
+                    continue
+                ip = data.get("client_ip") or data.get("remote_addr") or data.get("ip")
+                observations.append((line_start, timestamp, str(ip)[:45] if ip else None,
+                                    is_security_event(data, raw)))
+    except (FileNotFoundError, PermissionError, OSError):
+        return offset, generation, lines_read
+    if observations or offset != original_offset or generation != original_generation:
+        save_waf_observations(str(path), generation, observations, offset)
+    return offset, generation, lines_read

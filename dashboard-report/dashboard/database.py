@@ -11,6 +11,17 @@ def db_connect():
 def ensure_tables(conn) -> None:
     with conn.cursor() as cursor:
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS security_events (
+                id BIGSERIAL PRIMARY KEY,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                client_ip VARCHAR(45), raw_log TEXT NOT NULL,
+                attack_type VARCHAR(255) NOT NULL,
+                severity VARCHAR(16) NOT NULL CHECK (severity IN ('Critical','High','Medium','Low')),
+                recommendation TEXT NOT NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS security_events_timestamp_idx ON security_events (timestamp DESC)")
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS analyzer_control (
                 id SMALLINT PRIMARY KEY CHECK (id = 1),
                 enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -64,6 +75,18 @@ def ensure_tables(conn) -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS analyzer_console_logs_created_at_idx ON analyzer_console_logs (created_at DESC)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS waf_request_observations (
+                file_path TEXT NOT NULL,
+                generation INTEGER NOT NULL DEFAULT 0,
+                byte_offset BIGINT NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL,
+                client_ip VARCHAR(45),
+                blocked BOOLEAN NOT NULL DEFAULT FALSE,
+                PRIMARY KEY (file_path, generation, byte_offset)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS waf_request_observations_occurred_at_idx ON waf_request_observations (occurred_at DESC)")
 
 def analyzer_status() -> dict:
     with db_connect() as conn:
@@ -141,4 +164,43 @@ def fetch_console_logs(limit: int = 100):
             "ORDER BY id DESC LIMIT %s", (max(1, min(limit, 500)),),
         )
         return list(reversed(cursor.fetchall()))
+
+
+def database_status() -> tuple[bool, str]:
+    try:
+        options = {**DB_DEFAULTS, "connect_timeout": 3}
+        with psycopg2.connect(**options) as conn, conn.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        return True, "Connected"
+    except psycopg2.Error as exc:
+        return False, type(exc).__name__
+
+
+def fetch_waf_metrics(start: datetime, end: datetime) -> dict[str, int | float]:
+    with db_connect() as conn, conn.cursor() as cursor:
+        ensure_tables(conn)
+        cursor.execute(
+            "SELECT COUNT(*), COUNT(*) FILTER (WHERE blocked), "
+            "COUNT(DISTINCT client_ip) FILTER (WHERE blocked) "
+            "FROM waf_request_observations WHERE occurred_at >= %s AND occurred_at <= %s",
+            (start, end),
+        )
+        total_requests, blocked_requests, unique_attackers = (int(value or 0) for value in cursor.fetchone())
+    rate = (100.0 * blocked_requests / total_requests) if total_requests else 0.0
+    return {"total_requests": total_requests, "blocked_requests": blocked_requests,
+            "unique_attackers": unique_attackers, "block_rate": rate}
+
+
+def fetch_blocking_ips(start: datetime, end: datetime, limit: int = 100):
+    with db_connect() as conn, conn.cursor() as cursor:
+        ensure_tables(conn)
+        cursor.execute(
+            "SELECT client_ip, COUNT(*) AS blocked_requests, MAX(occurred_at) AS last_seen "
+            "FROM waf_request_observations WHERE blocked=TRUE AND client_ip IS NOT NULL "
+            "AND occurred_at >= %s AND occurred_at <= %s GROUP BY client_ip "
+            "ORDER BY blocked_requests DESC, last_seen DESC LIMIT %s",
+            (start, end, max(1, min(limit, 1000))),
+        )
+        return cursor.fetchall()
 

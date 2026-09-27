@@ -8,8 +8,8 @@ from pathlib import Path
 from .config import LOGGER, analyzer_timezone, positive_int_env
 from .console_logging import PostgresConsoleHandler
 from .database import (clear_reset_request, db_connect, get_control, initialize_database,
-                       load_offsets, update_progress)
-from .scanner import scan_file
+                       load_offsets, load_waf_offsets, update_progress)
+from .scanner import scan_file, scan_waf_observations
 
 def main() -> None:
     log_glob = os.getenv("BUNKERWEB_LOG_GLOB", "/var/log/bunkerweb/access.log")
@@ -23,11 +23,23 @@ def main() -> None:
     console_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     LOGGER.addHandler(console_handler)
     offsets = load_offsets()
+    waf_offsets = load_waf_offsets()
     next_scan_at = 0.0
     active_scan_date: date | None = None
     LOGGER.info("Analyzer idle; start it from the dashboard. Log source: %s", log_glob)
     while True:
         try:
+            current_date = datetime.now(tz).date()
+            observation_cutoff = datetime.combine(current_date, datetime_time.min, tzinfo=tz)
+            for filename in sorted(glob.glob(log_glob)):
+                if not Path(filename).name.startswith("access.log"):
+                    continue
+                saved_offset, generation = waf_offsets.get(filename, (0, 0))
+                observation_offset, generation, _ = scan_waf_observations(
+                    Path(filename), saved_offset, generation, observation_cutoff, max_lines
+                )
+                waf_offsets[filename] = (observation_offset, generation)
+
             enabled, scan_date, reset_requested, response_language = get_control()
             if reset_requested:
                 offsets.clear()

@@ -74,6 +74,31 @@ def initialize_database() -> None:
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS analyzer_console_logs_created_at_idx ON analyzer_console_logs (created_at DESC)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS waf_request_observations (
+                file_path TEXT NOT NULL,
+                generation INTEGER NOT NULL DEFAULT 0,
+                byte_offset BIGINT NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL,
+                client_ip VARCHAR(45),
+                blocked BOOLEAN NOT NULL DEFAULT FALSE,
+                PRIMARY KEY (file_path, generation, byte_offset)
+            )
+        """)
+        cur.execute("ALTER TABLE waf_request_observations ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE waf_request_observations DROP CONSTRAINT IF EXISTS waf_request_observations_pkey")
+        cur.execute("ALTER TABLE waf_request_observations ADD CONSTRAINT waf_request_observations_pkey PRIMARY KEY (file_path, generation, byte_offset)")
+        cur.execute("CREATE INDEX IF NOT EXISTS waf_request_observations_occurred_at_idx ON waf_request_observations (occurred_at DESC)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS waf_observation_offsets (
+                file_path TEXT PRIMARY KEY,
+                byte_offset BIGINT NOT NULL DEFAULT 0,
+                generation INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE waf_observation_offsets ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 0")
+        cur.execute("DELETE FROM waf_request_observations WHERE occurred_at < NOW() - INTERVAL '60 days'")
 
 
 def save_console_log(level: str, logger_name: str, message: str) -> None:
@@ -81,6 +106,29 @@ def save_console_log(level: str, logger_name: str, message: str) -> None:
         cur.execute(
             "INSERT INTO analyzer_console_logs (level, logger, message) VALUES (%s, %s, %s)",
             (level[:16], logger_name[:128], message[:4000]),
+        )
+
+
+def load_waf_offsets() -> dict[str, int]:
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT file_path, byte_offset, generation FROM waf_observation_offsets")
+        return {path: (int(offset), int(generation)) for path, offset, generation in cur.fetchall()}
+
+
+def save_waf_observations(file_path: str, generation: int,
+                          observations: list[tuple[int, datetime, str | None, bool]], new_offset: int) -> None:
+    with db_connect() as conn, conn.cursor() as cur:
+        if observations:
+            cur.executemany(
+                "INSERT INTO waf_request_observations(file_path, generation, byte_offset, occurred_at, client_ip, blocked) "
+                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT(file_path, generation, byte_offset) DO NOTHING",
+                [(file_path, generation, offset, occurred_at, ip, blocked) for offset, occurred_at, ip, blocked in observations],
+            )
+        cur.execute(
+            "INSERT INTO waf_observation_offsets(file_path, byte_offset, generation) VALUES (%s, %s, %s) "
+            "ON CONFLICT(file_path) DO UPDATE SET byte_offset=EXCLUDED.byte_offset, "
+            "generation=EXCLUDED.generation, updated_at=NOW()",
+            (file_path, new_offset, generation),
         )
 
 def save_event(raw: str, data: dict[str, Any], analysis: dict[str, str], usage: dict[str, int] | None) -> None:
