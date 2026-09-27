@@ -10,11 +10,12 @@ from .database import fetch_console_logs, set_analyzer, set_language
 def render_process_controls(analyzer: dict) -> None:
     with st.container(border=True):
         st.subheader("Tiến trình phân tích AI")
-        metrics = st.columns(4)
+        metrics = st.columns(2)
         metrics[0].metric("Trạng thái", analyzer["state"])
         metrics[1].metric("Sự kiện đã phân tích", f"{analyzer['analyzed']:,}")
-        metrics[2].metric("Dòng log đã quét", f"{analyzer['lines']:,}")
-        metrics[3].metric("Tiến độ tệp hiện tại", f"{analyzer['progress']:.1f}%")
+        followup = st.columns(2)
+        followup[0].metric("Dòng log đã quét", f"{analyzer['lines']:,}")
+        followup[1].metric("Tiến độ tệp hiện tại", f"{analyzer['progress']:.1f}%")
         st.progress(min(100, max(0, int(analyzer["progress"]))), text=f"Log hiện tại: {analyzer['file']}")
         st.caption(
             f"Lần quét gần nhất: {analyzer['last_scan'] or 'Chưa quét'} · Ngày quét: {analyzer['scan_date']} · "

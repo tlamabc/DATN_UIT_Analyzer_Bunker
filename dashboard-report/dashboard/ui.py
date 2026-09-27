@@ -35,17 +35,6 @@ def _render_brand() -> None:
 
 
 def _sidebar_inputs(db_ok: bool, db_message: str):
-    with st.sidebar:
-        st.markdown("""
-        <div class="side-brand"><div class="brand-mark">BW</div><div>
-        <div class="side-brand-title">BUNKERWEB</div><div class="side-brand-caption">SOC SECURITY MONITOR</div>
-        </div></div>
-        """, unsafe_allow_html=True)
-        st.markdown("<div class='side-label'>TRẠNG THÁI HỆ THỐNG</div>", unsafe_allow_html=True)
-        badge = "db-live" if db_ok else "db-down"
-        status = "● CƠ SỞ DỮ LIỆU · ĐANG KẾT NỐI" if db_ok else "● CƠ SỞ DỮ LIỆU · MẤT KẾT NỐI"
-        st.markdown(f"<div class='{badge}'>{status}</div>", unsafe_allow_html=True)
-        st.caption("Điều hướng luôn hiển thị ở thanh tiêu đề.")
     return st.session_state.get("soc-navigation", "Overview")
 
 
@@ -63,6 +52,10 @@ def _render_page_heading(page: str) -> None:
         "Reports": "Báo cáo sự cố cập nhật liên tục, phục vụ bàn giao và kiểm toán SOC.",
     }
     with st.container(key="soc-sticky-header"):
+        status_class = "db-live" if st.session_state.get("db-connected", True) else "db-down"
+        status_label = "ĐANG KẾT NỐI" if st.session_state.get("db-connected", True) else "MẤT KẾT NỐI"
+        st.markdown(f"<div class='soc-topline'><strong>BUNKERWEB · SOC</strong><span class='{status_class}'>● CƠ SỞ DỮ LIỆU · {status_label}</span></div>",
+                    unsafe_allow_html=True)
         with st.container(key="soc-top-nav"):
             nav_columns = st.columns(4)
             for column, option in zip(nav_columns, PAGES):
@@ -84,12 +77,12 @@ def _render_page_heading(page: str) -> None:
 def _filtered_events(events: pd.DataFrame, page: str) -> pd.DataFrame:
     with st.container(border=True):
         st.markdown("<div class='section-eyebrow'>BỘ LỌC SỰ KIỆN</div>", unsafe_allow_html=True)
-        filter_cols = st.columns(3)
+        filter_cols = st.columns(2)
         present_risk_scores = [value for value in RISK_ORDER if value in set(events["risk_score"].dropna())]
         selected_risk_scores = filter_cols[0].multiselect("Mức độ rủi ro", present_risk_scores, default=present_risk_scores, key=f"{page}-risk-filter")
         classifications = sorted(str(value) for value in events["classification"].dropna().unique())
         selected_classifications = filter_cols[1].multiselect("Phân loại", classifications, default=classifications, key=f"{page}-classification-filter")
-        ip_search = filter_cols[2].text_input("Địa chỉ IP nguồn", placeholder="Tìm IP…", key=f"{page}-source-ip-filter").strip().lower()
+        ip_search = st.text_input("Địa chỉ IP nguồn", placeholder="Tìm IP…", key=f"{page}-source-ip-filter").strip().lower()
     filtered = events[events["risk_score"].isin(selected_risk_scores) & events["classification"].astype(str).isin(selected_classifications)].copy()
     if ip_search:
         filtered = filtered[filtered["client_ip"].fillna("").astype(str).str.lower().str.contains(ip_search, regex=False)]
@@ -99,11 +92,12 @@ def _filtered_events(events: pd.DataFrame, page: str) -> pd.DataFrame:
 def _metric_row(events: pd.DataFrame, candidates: pd.DataFrame) -> None:
     risk_score = events["risk_score"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
     critical_high = int(risk_score.isin(["critical", "high"]).sum())
-    cards = st.columns(4)
+    cards = st.columns(2)
     cards[0].metric("Sự kiện AI phân tích", f"{len(events):,}")
     cards[1].metric("Mức cao / nghiêm trọng", f"{critical_high:,}")
-    cards[2].metric("IP nguồn duy nhất", f"{events['client_ip'].nunique():,}" if not events.empty else "0")
-    cards[3].metric("IP cần analyst rà soát", f"{len(candidates):,}")
+    followup = st.columns(2)
+    followup[0].metric("IP nguồn duy nhất", f"{events['client_ip'].nunique():,}" if not events.empty else "0")
+    followup[1].metric("IP cần analyst rà soát", f"{len(candidates):,}")
 
 
 def _render_classification_donut(events: pd.DataFrame) -> None:
@@ -227,12 +221,12 @@ def _render_monitoring() -> None:
         render_process_controls(current)
         with st.container(border=True):
             st.markdown("### Điều khiển bộ phân tích")
-            columns = st.columns(3)
-            columns[0].caption("Phân tích và đề xuất luôn sử dụng tiếng Việt.")
-            if columns[1].button("▶ Khởi động", type="primary", use_container_width=True, disabled=current["enabled"]):
+            st.caption("Phân tích và đề xuất luôn sử dụng tiếng Việt.")
+            start_col, stop_col = st.columns(2)
+            if start_col.button("▶ Khởi động", type="primary", use_container_width=True, disabled=current["enabled"]):
                 set_analyzer(True, "Vietnamese")
                 st.rerun()
-            if columns[2].button("■ Dừng", use_container_width=True, disabled=not current["enabled"]):
+            if stop_col.button("■ Dừng", use_container_width=True, disabled=not current["enabled"]):
                 set_analyzer(False, "Vietnamese")
                 st.rerun()
 
@@ -253,11 +247,11 @@ def _render_incident_inspector(event: pd.Series) -> None:
     )
     st.caption("AI hỗ trợ điều tra và đề xuất; chính sách chặn vẫn do WAF thực thi.")
 
-    pipeline_cols = st.columns([1, 1, 1, 1])
+    pipeline_cols = st.columns(2)
     pipeline_cols[0].markdown("**Sự kiện**")
     pipeline_cols[1].markdown("**Thu thập**")
-    pipeline_cols[2].markdown("**Phân tích**")
-    pipeline_cols[3].markdown("**Mô hình AI**")
+    pipeline_cols[0].markdown("**Phân tích**")
+    pipeline_cols[1].markdown("**Mô hình AI**")
 
     classification_col, risk_col = st.columns(2)
     with classification_col:
@@ -320,11 +314,11 @@ def _render_events(events: pd.DataFrame) -> None:
 def _render_reports(events: pd.DataFrame, start: datetime, end: datetime, window: str) -> None:
     st.markdown("### Báo cáo sự cố trực tiếp")
     st.caption(f"Cửa sổ {window} · {start:%d/%m/%Y %H:%M} đến {end:%d/%m/%Y %H:%M} (UTC+07)")
-    cards = st.columns(3)
+    cards = st.columns(2)
     counts = events["risk_score"].astype(str).str.lower() if not events.empty else pd.Series(dtype=str)
     cards[0].metric("Sự kiện trong cửa sổ", f"{len(events):,}")
     cards[1].metric("Nghiêm trọng", f"{int((counts == 'critical').sum()):,}")
-    cards[2].metric("Mức cao", f"{int((counts == 'high').sum()):,}")
+    st.metric("Mức cao", f"{int((counts == 'high').sum()):,}")
     if events.empty:
         st.info("Chưa có sự kiện phù hợp để xuất báo cáo.")
         return
@@ -362,6 +356,7 @@ def _render_live_data(page: str) -> None:
 def run_app() -> None:
     render_theme()
     db_ok, db_message = database_status()
+    st.session_state["db-connected"] = db_ok
     page = _sidebar_inputs(db_ok, db_message)
     if not db_ok:
         st.error(f"Không kết nối được PostgreSQL ({db_message}). Kiểm tra dịch vụ cơ sở dữ liệu.")
