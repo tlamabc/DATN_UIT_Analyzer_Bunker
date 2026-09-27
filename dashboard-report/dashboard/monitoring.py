@@ -10,12 +10,11 @@ from .database import fetch_console_logs, set_analyzer, set_language
 def render_process_controls(analyzer: dict) -> None:
     with st.container(border=True):
         st.subheader("Analyzer process")
-        state, counts = st.columns([1, 3])
-        state.metric("Process state", analyzer["state"])
-        metrics = counts.columns(3)
-        metrics[0].metric("Events analyzed", f"{analyzer['analyzed']:,}")
-        metrics[1].metric("Log lines scanned", f"{analyzer['lines']:,}")
-        metrics[2].metric("Current file progress", f"{analyzer['progress']:.1f}%")
+        metrics = st.columns(4)
+        metrics[0].metric("Process state", analyzer["state"])
+        metrics[1].metric("Events analyzed", f"{analyzer['analyzed']:,}")
+        metrics[2].metric("Log lines scanned", f"{analyzer['lines']:,}")
+        metrics[3].metric("Current file progress", f"{analyzer['progress']:.1f}%")
         st.progress(min(100, max(0, int(analyzer["progress"]))), text=f"Current log: {analyzer['file']}")
         st.caption(
             f"Last scan: {analyzer['last_scan'] or 'Not yet scanned'} · Scan date: {analyzer['scan_date']} · "

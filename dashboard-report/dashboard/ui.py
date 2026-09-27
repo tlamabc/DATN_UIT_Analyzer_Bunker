@@ -100,25 +100,23 @@ def _render_overview(events: pd.DataFrame, analyzer: dict) -> None:
 
 def _render_monitoring(analyzer: dict) -> None:
     st.markdown("## Process monitoring")
-    state_col, action_col = st.columns([3, 1])
-    with state_col:
-        render_process_controls(analyzer)
-    with action_col:
-        with st.container(border=True):
-            st.markdown("### Controls")
-            selected_language = st.selectbox(
-                "AI recommendation language", ["Vietnamese", "English"],
-                index=0 if analyzer["language"] == "Vietnamese" else 1,
-                format_func=lambda value: "Tiếng Việt" if value == "Vietnamese" else value,
-                key="monitor-language",
-            )
-            if st.button("▶ Start analyzer", type="primary", use_container_width=True, disabled=analyzer["enabled"]):
-                change_analyzer_state(True, selected_language)
-                st.rerun()
-            if st.button("■ Stop analyzer", use_container_width=True, disabled=not analyzer["enabled"]):
-                change_analyzer_state(False, selected_language)
-                st.rerun()
-            st.caption("Reads configured BunkerWeb logs and sends matching security events to AI analysis.")
+    render_process_controls(analyzer)
+    with st.container(border=True):
+        st.markdown("### Process controls")
+        control_cols = st.columns([2, 1, 1, 2])
+        selected_language = control_cols[0].selectbox(
+            "AI recommendation language", ["Vietnamese", "English"],
+            index=0 if analyzer["language"] == "Vietnamese" else 1,
+            format_func=lambda value: "Tiếng Việt" if value == "Vietnamese" else value,
+            key="monitor-language",
+        )
+        if control_cols[1].button("▶ Start analyzer", type="primary", use_container_width=True, disabled=analyzer["enabled"]):
+            change_analyzer_state(True, selected_language)
+            st.rerun()
+        if control_cols[2].button("■ Stop analyzer", use_container_width=True, disabled=not analyzer["enabled"]):
+            change_analyzer_state(False, selected_language)
+            st.rerun()
+        control_cols[3].caption("Reads configured BunkerWeb logs and sends matching security events to AI analysis.")
     render_live_console(analyzer)
 
 
